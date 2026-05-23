@@ -4533,6 +4533,28 @@ function createCustomerProfilingForm() {
                 </div>
               </div>
 
+              {/* Kartu Rumus KPI */}
+              <div className="bg-[#FAF9F6] border border-[#E5E5DF] rounded-3xl p-6 shadow-xs relative">
+                <h3 className="text-sm font-bold text-[#4A4A3C] uppercase tracking-wider flex items-center gap-2 mb-3">
+                  <TrendingUp className="w-4 h-4 text-emerald-600" />
+                  Kartu Rumus KPI
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-[11px] leading-relaxed text-[#5A5A40] mt-4">
+                  <div className="bg-white border border-[#E5E5DF]/60 p-4 rounded-2xl">
+                    <span className="font-extrabold text-emerald-800 uppercase block mb-1">Pencapaian Call Plan</span>
+                    <p className="text-[#8C8C70] font-mono">CP / TC x 100%</p>
+                  </div>
+                  <div className="bg-white border border-[#E5E5DF]/60 p-4 rounded-2xl">
+                    <span className="font-extrabold text-rose-800 uppercase block mb-1">Effective Call</span>
+                    <p className="text-[#8C8C70] font-mono">EC / CP x 100%</p>
+                  </div>
+                  <div className="bg-white border border-[#E5E5DF]/60 p-4 rounded-2xl">
+                    <span className="font-extrabold text-amber-800 uppercase block mb-1">Pencapaian SKU Fokus</span>
+                    <p className="text-[#8C8C70] font-mono">SKU Terjual / Target SKU x 100%</p>
+                  </div>
+                </div>
+              </div>
+
               {/* Filtering & Source Status Controls */}
               <div className="bg-[#FAF9F6] border border-[#E5E5DF] rounded-3xl p-6 space-y-4">
                 <div className="flex flex-wrap items-end justify-between gap-4">
