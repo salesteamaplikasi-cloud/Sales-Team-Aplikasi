@@ -4371,7 +4371,7 @@ function createCustomerProfilingForm() {
                             <div className="text-[10px] text-[#8C8C70]">{'sponsor' in item ? `Sponsor: ${item.sponsor}` : item.description}</div>
                           </div>
                           <div className="text-emerald-700 font-extrabold pr-1 whitespace-nowrap">
-                            {('pointsRequired' in item ? item.pointsRequired : (item as CatalogHadiah).pointsValue)} Pts
+                            {('pointsRequired' in item ? item.pointsRequired : (item as CatalogHadiah).pointsValue)} Poin
                           </div>
                         </div>
                       ))}
