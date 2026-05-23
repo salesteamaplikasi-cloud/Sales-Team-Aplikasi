@@ -1,0 +1,6 @@
+{
+  "name": "Audit KPI Sales",
+  "description": "Form Verifikasi Laporan & Bantu Input Sales Force untuk Admin KPI dengan fitur Copy-Paste Parser dan database sederhana.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
