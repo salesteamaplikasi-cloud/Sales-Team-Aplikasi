@@ -3,6 +3,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export interface RewardMerchant {
+  id: string;
+  name: string;
+  description: string;
+  pointsRequired: number;
+}
+
+export interface CatalogHadiah {
+  id: string;
+  name: string;
+  sponsor: string;
+  pointsValue: number;
+}
+
 export interface Salesman {
   id: string;
   name: string;

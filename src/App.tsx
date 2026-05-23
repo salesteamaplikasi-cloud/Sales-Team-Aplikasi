@@ -45,7 +45,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
-import { Salesman, Product, KpiReport, ImportParsingResult } from "./types";
+import { Salesman, Product, KpiReport, ImportParsingResult, RewardMerchant, CatalogHadiah } from "./types";
 import * as XLSX from "xlsx";
 import {
   INITIAL_SALESMEN,
@@ -599,6 +599,58 @@ export default function App() {
     ];
   });
 
+  const [rewardMerchants, setRewardMerchants] = useState<RewardMerchant[]>(() => {
+    try {
+      const stored = localStorage.getItem("KPI_REWARD_MERCHANTS");
+      if (stored) return JSON.parse(stored);
+    } catch (_) {}
+    return [
+      { id: "r-1", name: "Voucher Belanja 50rb", description: "Voucher diskon di mitra DKR", pointsRequired: 500 },
+      { id: "r-2", name: "Paket Sembako Starter", description: "Paket basic kebutuhan pokok", pointsRequired: 1000 }
+    ];
+  });
+
+  const [katalogHadiah, setKatalogHadiah] = useState<CatalogHadiah[]>(() => {
+    try {
+      const stored = localStorage.getItem("KPI_KATALOG_HADIAH");
+      if (stored) return JSON.parse(stored);
+    } catch (_) {}
+    return [
+      { id: "k-1", name: "Kipas Angin Cosmos", sponsor: "Cosmos", pointsValue: 5000 },
+      { id: "k-2", name: "Kompor Gas", sponsor: "Rinnai", pointsValue: 8000 }
+    ];
+  });
+
+  // --- REWARDS CRUD HANDLERS ---
+  const [rewardModal, setRewardModal] = useState<{ isOpen: boolean; type: 'merchant' | 'catalog'; item?: any }>({ isOpen: false, type: 'merchant' });
+
+  const handleSaveReward = (type: 'merchant' | 'catalog', item: any) => {
+    if (type === 'merchant') {
+      if (item.id) {
+        setRewardMerchants(prev => prev.map(r => r.id === item.id ? item : r));
+      } else {
+        setRewardMerchants(prev => [...prev, { ...item, id: 'r-' + Date.now() }]);
+      }
+    } else {
+      if (item.id) {
+        setKatalogHadiah(prev => prev.map(r => r.id === item.id ? item : r));
+      } else {
+        setKatalogHadiah(prev => [...prev, { ...item, id: 'k-' + Date.now() }]);
+      }
+    }
+    setRewardModal({ isOpen: false, type: 'merchant' });
+    showToast("Reward berhasil disimpan!", "success");
+  };
+
+  const handleDeleteReward = (type: 'merchant' | 'catalog', id: string) => {
+    if (type === 'merchant') {
+      setRewardMerchants(prev => prev.filter(r => r.id !== id));
+    } else {
+      setKatalogHadiah(prev => prev.filter(r => r.id !== id));
+    }
+    showToast("Reward berhasil dihapus!", "success");
+  };
+    
   // Loyalty Redeem rewards listing state
   const [loyaltyRedeemHistory, setLoyaltyRedeemHistory] = useState<any[]>(() => {
     try {
@@ -756,6 +808,14 @@ export default function App() {
       setReports(INITIAL_REPORTS);
     }
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem("KPI_REWARD_MERCHANTS", JSON.stringify(rewardMerchants));
+  }, [rewardMerchants]);
+
+  useEffect(() => {
+    localStorage.setItem("KPI_KATALOG_HADIAH", JSON.stringify(katalogHadiah));
+  }, [katalogHadiah]);
 
   // Auto-fetch spreadsheet reports when entering app or switching to KPI SALES tab
   useEffect(() => {
@@ -1741,30 +1801,24 @@ export default function App() {
     showToast("Tindakan disimpan! Toko ini berhasil dianugerahi +15 Poin Loyalitas.");
   };
 
-  const REWARDS_CATALOG = [
-    { id: "r-1", name: "Sembako Bundling Paket Super", pointsCost: 100, sponsor: "DKR Distributor" },
-    { id: "r-2", name: "Potongan Tagihan Tunai Rp 100.000", pointsCost: 250, sponsor: "Jimmy System" },
-    { id: "r-3", name: "Spanduk Toko Exclusive DKR", pointsCost: 150, sponsor: "DKR Distributor" },
-    { id: "r-4", name: "Voucher Belanja Alfamart Rp 50.000", pointsCost: 80, sponsor: "Portal Audit Partner" }
-  ];
-
   const handleRedeemReward = async () => {
     const cust = customers.find(c => c.id === selectedCustomerIdForRedeem);
-    const reward = REWARDS_CATALOG.find(r => r.id === selectedRewardId);
+    const reward = [...rewardMerchants, ...katalogHadiah].find(r => r.id === selectedRewardId);
 
     if (!cust || !reward) {
       showToast("Data redeem tidak lengkap atau salah.", "error");
       return;
     }
 
-    if (cust.points < reward.pointsCost) {
-      showToast(`Poin ${cust.name} tidak mencukupi (${cust.points}/${reward.pointsCost} Poin)!`, "error");
+    const pointsCost = 'pointsRequired' in reward ? reward.pointsRequired : (reward as CatalogHadiah).pointsValue;
+    if ((cust.points || 0) < pointsCost) {
+      showToast(`Poin ${cust.name} tidak mencukupi (${cust.points || 0}/${pointsCost} Poin)!`, "error");
       return;
     }
 
     const updatedCustomers = customers.map(c => {
       if (c.id === selectedCustomerIdForRedeem) {
-        return { ...c, points: c.points - reward.pointsCost };
+        return { ...c, points: (c.points || 0) - pointsCost };
       }
       return c;
     });
@@ -1773,7 +1827,7 @@ export default function App() {
       id: "rd-" + Date.now(),
       customerName: cust.name,
       rewardName: reward.name,
-      pointsSpent: reward.pointsCost,
+      pointsSpent: pointsCost,
       date: new Date().toISOString().split("T")[0],
       status: "Berhasil Diproses"
     };
@@ -1785,7 +1839,7 @@ export default function App() {
     setLoyaltyRedeemHistory(updatedRedeems);
     saveToLocalStorage("KPI_LOYALTY_REDEEMS", updatedRedeems);
 
-    showToast(`Sukses klaim hadiah! Poin Toko ${cust.name} dikurangi ${reward.pointsCost}.`);
+    showToast(`Sukses klaim hadiah! Poin Toko ${cust.name} dikurangi ${pointsCost}.`);
 
     // Hubungkan & Sinkronkan otomatis ke Google Sheets!
     if (sheetsScriptUrl) {
@@ -2564,6 +2618,7 @@ export default function App() {
                       <input
                         type="number"
                         min="0"
+                        onFocus={(e) => e.target.value === "0" && e.target.select()}
                         value={tc}
                         onChange={(e) => setTc(parseInt(e.target.value, 10) || 0)}
                         className="w-full bg-[#FAF9F6] text-center rounded-xl py-3 text-lg font-mono font-black text-[#5A5A40] border border-[#E5E5DF] focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40]"
@@ -2579,6 +2634,7 @@ export default function App() {
                       <input
                         type="number"
                         min="0"
+                        onFocus={(e) => e.target.value === "0" && e.target.select()}
                         value={cp}
                         onChange={(e) => setCp(parseInt(e.target.value, 10) || 0)}
                         className="w-full bg-[#FAF9F6] text-center rounded-xl py-3 text-lg font-mono font-black text-[#5A5A40] border border-[#E5E5DF] focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40]"
@@ -2594,6 +2650,7 @@ export default function App() {
                       <input
                         type="number"
                         min="0"
+                        onFocus={(e) => e.target.value === "0" && e.target.select()}
                         value={ec}
                         onChange={(e) => setEc(parseInt(e.target.value, 10) || 0)}
                         className="w-full bg-[#FAF9F6] text-center rounded-xl py-3 text-lg font-mono font-black text-[#5A5A40] border border-[#E5E5DF] focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40]"
@@ -2609,6 +2666,7 @@ export default function App() {
                       <input
                         type="number"
                         min="0"
+                        onFocus={(e) => e.target.value === "0" && e.target.select()}
                         value={skuTotal}
                         onChange={(e) => setSkuTotal(parseInt(e.target.value, 10) || 0)}
                         className="w-full bg-[#FAF9F6] text-center rounded-xl py-3 text-lg font-mono font-black text-[#5A5A40] border border-[#E5E5DF] focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40]"
@@ -2631,6 +2689,7 @@ export default function App() {
                         <input
                           type="number"
                           min="0"
+                          onFocus={(e) => e.target.value === "0" && e.target.select()}
                           value={operationalCost}
                           onChange={(e) => setOperationalCost(parseInt(e.target.value, 10) || 0)}
                           className="w-full bg-[#FAF9F6] border border-[#E5E5DF] rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40] focus:bg-white text-[#4A4A3C] font-semibold"
@@ -2661,6 +2720,7 @@ export default function App() {
                         <input
                           type="number"
                           min="0"
+                          onFocus={(e) => e.target.value === "0" && e.target.select()}
                           value={billsReceived}
                           onChange={(e) => setBillsReceived(parseInt(e.target.value, 10) || 0)}
                           className="w-full bg-[#FAF9F6] border border-[#E5E5DF] rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40] focus:bg-white text-[#4A4A3C] font-bold"
@@ -3691,6 +3751,24 @@ export default function App() {
                           const publicUrl = "https://docs.google.com/forms/d/e/1FAIpQLSd6ZG5nRGTKbiW00xzdbuoFQ_65_WJf3JVHFDMtyYGfeKcEow/viewform?pli=1";
                           const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(publicUrl)}`;
                           
+                          const handleDownloadQR = async () => {
+                            try {
+                              const response = await fetch(qrApiUrl);
+                              const blob = await response.blob();
+                              const url = window.URL.createObjectURL(blob);
+                              const a = document.createElement("a");
+                              a.href = url;
+                              a.download = "QR_Code_Loyalty.png";
+                              document.body.appendChild(a);
+                              a.click();
+                              document.body.removeChild(a);
+                              window.URL.revokeObjectURL(url);
+                              showToast("QR Code berhasil diunduh!", "success");
+                            } catch (err) {
+                              showToast("Gagal mengunduh QR Code.", "error");
+                            }
+                          };
+                          
                           return (
                             <div className="bg-white p-2.5 rounded-2xl border border-[#E5E5DF] flex flex-col items-center justify-center text-center gap-2">
                               <img
@@ -3701,6 +3779,13 @@ export default function App() {
                               />
                               
                               <div className="w-full space-y-1">
+                                <button
+                                  type="button"
+                                  onClick={handleDownloadQR}
+                                  className="w-full py-1.5 text-[9px] font-bold bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg transition mb-1"
+                                >
+                                  ⬇️ Unduh Gambar QR (PNG)
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -4239,9 +4324,9 @@ function createCustomerProfilingForm() {
                             onChange={(e) => setSelectedRewardId(e.target.value)}
                             className="w-full bg-white border border-[#E5E5DF] rounded-xl px-2.5 py-2 text-xs text-[#4A4A3C] focus:outline-hidden"
                           >
-                            {REWARDS_CATALOG.map(r => (
+                            {[...rewardMerchants, ...katalogHadiah].map(r => (
                               <option key={r.id} value={r.id}>
-                                {r.name} - Biaya {r.pointsCost} Poin ({r.sponsor})
+                                {r.name} - Nilai {('pointsRequired' in r ? r.pointsRequired : (r as CatalogHadiah).pointsValue)} Poin
                               </option>
                             ))}
                           </select>
@@ -4265,14 +4350,14 @@ function createCustomerProfilingForm() {
                       Katalog Resmi & Nilai Hadiah
                     </h3>
                     <div className="space-y-2.5">
-                      {REWARDS_CATALOG.map(item => (
+                      {[...rewardMerchants, ...katalogHadiah].map(item => (
                         <div key={item.id} className="p-3 bg-white border border-[#E5E5DF]/60 rounded-xl flex items-center justify-between gap-3 text-xs">
                           <div>
                             <div className="font-bold text-[#4A4A3C]">{item.name}</div>
-                            <div className="text-[10px] text-[#8C8C70]">Sponsor: {item.sponsor}</div>
+                            <div className="text-[10px] text-[#8C8C70]">{'sponsor' in item ? `Sponsor: ${item.sponsor}` : item.description}</div>
                           </div>
                           <div className="text-emerald-700 font-extrabold pr-1 whitespace-nowrap">
-                            {item.pointsCost} Pts
+                            {('pointsRequired' in item ? item.pointsRequired : (item as CatalogHadiah).pointsValue)} Pts
                           </div>
                         </div>
                       ))}
