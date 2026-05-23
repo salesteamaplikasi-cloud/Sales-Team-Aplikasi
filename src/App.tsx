@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
+import { RewardModal } from "./components/RewardModal";
 import { Salesman, Product, KpiReport, ImportParsingResult, RewardMerchant, CatalogHadiah } from "./types";
 import * as XLSX from "xlsx";
 import {
@@ -640,6 +641,7 @@ export default function App() {
     }
     setRewardModal({ isOpen: false, type: 'merchant' });
     showToast("Reward berhasil disimpan!", "success");
+    if (sheetsScriptUrl) handleSyncLoyaltyToSheets(customers, loyaltyRedeemHistory, true);
   };
 
   const handleDeleteReward = (type: 'merchant' | 'catalog', id: string) => {
@@ -648,7 +650,9 @@ export default function App() {
     } else {
       setKatalogHadiah(prev => prev.filter(r => r.id !== id));
     }
+    setRewardModal({ isOpen: false, type: 'merchant' });
     showToast("Reward berhasil dihapus!", "success");
+    if (sheetsScriptUrl) handleSyncLoyaltyToSheets(customers, loyaltyRedeemHistory, true);
   };
     
   // Loyalty Redeem rewards listing state
@@ -4345,13 +4349,23 @@ function createCustomerProfilingForm() {
 
                   {/* Informational Rewards Display Panel */}
                   <div className="bg-[#FAF9F6] p-6 rounded-3xl border border-[#E5E5DF] shadow-xs">
-                    <h3 className="text-xs font-black text-[#4A4A3C] uppercase tracking-wider mb-3 flex items-center gap-2">
-                      <Crown className="w-4 h-4 text-amber-500" />
-                      Katalog Resmi & Nilai Hadiah
-                    </h3>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-xs font-black text-[#4A4A3C] uppercase tracking-wider flex items-center gap-2">
+                        <Crown className="w-4 h-4 text-amber-500" />
+                        Katalog Resmi & Nilai Hadiah
+                      </h3>
+                      <div className="flex gap-2">
+                        <button onClick={() => setRewardModal({ isOpen: true, type: 'merchant' })} className="text-[10px] bg-white border border-[#E5E5DF] px-2 py-1 rounded-md hover:bg-gray-50">+ Merchant</button>
+                        <button onClick={() => setRewardModal({ isOpen: true, type: 'catalog' })} className="text-[10px] bg-white border border-[#E5E5DF] px-2 py-1 rounded-md hover:bg-gray-50">+ Katalog</button>
+                      </div>
+                    </div>
                     <div className="space-y-2.5">
                       {[...rewardMerchants, ...katalogHadiah].map(item => (
-                        <div key={item.id} className="p-3 bg-white border border-[#E5E5DF]/60 rounded-xl flex items-center justify-between gap-3 text-xs">
+                        <div 
+                          key={item.id} 
+                          onClick={() => setRewardModal({ isOpen: true, type: 'pointsRequired' in item ? 'merchant' : 'catalog', item })}
+                          className="p-3 bg-white border border-[#E5E5DF]/60 rounded-xl flex items-center justify-between gap-3 text-xs cursor-pointer hover:border-[#5A5A40] transition"
+                        >
                           <div>
                             <div className="font-bold text-[#4A4A3C]">{item.name}</div>
                             <div className="text-[10px] text-[#8C8C70]">{'sponsor' in item ? `Sponsor: ${item.sponsor}` : item.description}</div>
@@ -5694,6 +5708,16 @@ function createCustomerProfilingForm() {
         </div>
       </footer>
       </div>
+
+      {/* Modals */}
+      <RewardModal 
+        isOpen={rewardModal.isOpen}
+        type={rewardModal.type}
+        item={rewardModal.item}
+        onClose={() => setRewardModal({ isOpen: false, type: 'merchant' })}
+        onSave={handleSaveReward}
+        onDelete={handleDeleteReward}
+      />
     </div>
   );
 }
