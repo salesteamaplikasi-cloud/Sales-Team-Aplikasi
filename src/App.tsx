@@ -790,8 +790,7 @@ export default function App() {
     if (storedSalesmen) {
       setSalesmen(JSON.parse(storedSalesmen));
     } else {
-      localStorage.setItem("KPI_DB_SALESMEN", JSON.stringify(INITIAL_SALESMEN));
-      setSalesmen(INITIAL_SALESMEN);
+      handleFetchSalesmenFromSheets();
     }
 
     // 2. Products
@@ -1124,6 +1123,34 @@ export default function App() {
       return [];
     } finally {
       setIsFetchingReports(false);
+    }
+  };
+
+  const handleFetchSalesmenFromSheets = async () => {
+    if (!sheetsScriptUrl) return;
+    try {
+      const response = await fetch(sheetsScriptUrl, {
+        method: "POST",
+        mode: "cors",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({ action: "getSalesmen" })
+      });
+      const text = await response.text();
+      const resData = JSON.parse(text);
+      if (resData.success && resData.salesmen) {
+        const normalized: Salesman[] = resData.salesmen.map((item: any) => ({
+          id: String(item["ID Salesman"] || item.id),
+          name: String(item["Nama Salesman"] || item.name),
+          area: String(item["Area Wilayah"] || item.area),
+          phone: String(item["No. HP / Telepon"] || item.phone || "-"),
+          isActive: true
+        }));
+        setSalesmen(normalized);
+        localStorage.setItem("KPI_DB_SALESMEN", JSON.stringify(normalized));
+        showToast("Berhasil menarik data Salesman dari Google Sheets!", "success");
+      }
+    } catch (err) {
+      console.error("Fetch salesmen error:", err);
     }
   };
 

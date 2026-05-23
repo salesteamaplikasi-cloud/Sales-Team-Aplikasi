@@ -5,14 +5,7 @@
 
 import { Salesman, Product, KpiReport } from "./types";
 
-export const INITIAL_SALESMEN: Salesman[] = [
-  { id: "s-1", name: "RENY", phone: "08123456789", area: "Semarang Barat", isActive: true, createdAt: "2026-01-01T00:00:00Z" },
-  { id: "s-2", name: "BUDI", phone: "08234567890", area: "Semarang Timur", isActive: true, createdAt: "2026-01-02T00:00:00Z" },
-  { id: "s-3", name: "ANDI", phone: "08345678901", area: "Semarang Selatan", isActive: true, createdAt: "2026-01-03T00:00:00Z" },
-  { id: "s-4", name: "SITI", phone: "08456789012", area: "Semarang Tengah", isActive: true, createdAt: "2026-01-04T00:00:00Z" },
-  { id: "s-5", name: "DEDI", phone: "08567890123", area: "Semarang Utara", isActive: true, createdAt: "2026-01-05T00:00:00Z" },
-  { id: "s-6", name: "Rino", phone: "08122334455", area: "CILONGOK", isActive: true, createdAt: "2026-01-06T00:00:00Z" }
-];
+export const INITIAL_SALESMEN: Salesman[] = [];
 
 export const INITIAL_PRODUCTS: Product[] = [
   { id: "p-1", name: "COTTON BUD YO PIPI", category: "Baby Care", price: 8000, skuCode: "CB-YPP", isActive: true },
