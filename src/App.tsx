@@ -396,32 +396,23 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
           timestamp: ""
         };
         
-        for (var j = 0; j < headers.length; j++) {
-          var headerCol = headers[j].toString().toLowerCase();
-          var val = rowVal[j];
-          if (val === undefined || val === null) val = "";
-          
-          if (j === 1) { 
-            // Ambil Nama Toko selalu dari Kolom B (Index 1)
-            item.name = val.toString().trim();
-          } else if (headerCol.indexOf("sales") > -1 || headerCol.indexOf("salesman") > -1) {
-            item.salesmanName = val.toString().trim();
-          } else if (headerCol.indexOf("alamat") > -1 || headerCol.indexOf("lokasi") > -1) {
-            item.address = val.toString().trim();
-          } else if (headerCol.indexOf("jenis") > -1 || headerCol.indexOf("sektor") > -1 || headerCol.indexOf("kategori") > -1) {
-            item.jenisToko = val.toString().trim();
-          } else if (headerCol.indexOf("omzet") > -1 || headerCol.indexOf("belanja") > -1 || headerCol.indexOf("estimasi") > -1 || headerCol.indexOf("kas") > -1) {
-            var num = parseFloat(val.toString().replace(/[^0-9]/g, ""));
-            item.estimatedOmzet = isNaN(num) ? 5000000 : num;
-          } else if (headerCol.indexOf("sewa") > -1 || headerCol.indexOf("bangunan") > -1 || headerCol.indexOf("status") > -1 || headerCol.indexOf("kepemilikan") > -1) {
-            item.ownership = val.toString().trim();
-          } else if (headerCol.indexOf("lama") > -1 || headerCol.indexOf("berdiri") > -1 || headerCol.indexOf("tahun") > -1 || headerCol.indexOf("umur") > -1) {
-            var sage = parseInt(val.toString().replace(/[^0-9]/g, ""), 10);
-            item.storeAgeYears = isNaN(sage) ? 2 : sage;
-          } else if (headerCol.indexOf("timestamp") > -1 || headerCol.indexOf("tanggal") > -1 || j === 0) {
-            item.timestamp = val.toString();
-          }
-        }
+        // Mengambil data secara statis berdasarkan urutan kolom (A=0, B=1, ... H=7)
+        item.timestamp = (rowVal[0] !== undefined && rowVal[0] !== null) ? rowVal[0].toString() : "";
+        item.name = (rowVal[1] !== undefined && rowVal[1] !== null) ? rowVal[1].toString().trim() : "";
+        item.address = (rowVal[2] !== undefined && rowVal[2] !== null) ? rowVal[2].toString().trim() : "";
+        item.jenisToko = (rowVal[3] !== undefined && rowVal[3] !== null) ? rowVal[3].toString().trim() : "Sembako";
+        
+        var omzetVal = (rowVal[4] !== undefined && rowVal[4] !== null) ? rowVal[4].toString() : "";
+        var num = parseFloat(omzetVal.replace(/[^0-9]/g, ""));
+        item.estimatedOmzet = isNaN(num) ? 5000000 : num;
+        
+        item.ownership = (rowVal[5] !== undefined && rowVal[5] !== null) ? rowVal[5].toString().trim() : "Milik Sendiri";
+        
+        var ageVal = (rowVal[6] !== undefined && rowVal[6] !== null) ? rowVal[6].toString() : "";
+        var sage = parseInt(ageVal.replace(/[^0-9]/g, ""), 10);
+        item.storeAgeYears = isNaN(sage) ? 2 : sage;
+        
+        item.salesmanName = (rowVal[7] !== undefined && rowVal[7] !== null) ? rowVal[7].toString().trim() : "";
         
         if (item.name) {
           importedList.push(item);
