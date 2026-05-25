@@ -820,6 +820,10 @@ export default function App() {
     localStorage.setItem("KPI_KATALOG_HADIAH", JSON.stringify(katalogHadiah));
   }, [katalogHadiah]);
 
+  useEffect(() => {
+    setSelectedCycle(autoDetectCycle(reportDate));
+  }, [reportDate]);
+
   // Auto-fetch spreadsheet reports when entering app or switching to KPI SALES tab
   useEffect(() => {
     if (sheetsScriptUrl && (activeTab === "kpisales" || activeTab === "reports" || activeTab === "sheets")) {
@@ -1147,10 +1151,40 @@ export default function App() {
         }));
         setSalesmen(normalized);
         localStorage.setItem("KPI_DB_SALESMEN", JSON.stringify(normalized));
-        showToast("Berhasil menarik data Salesman dari Google Sheets!", "success");
+        showToast("Berhasil menarik data dari tab 'Daftar Salesman' di Google Sheets!", "success");
       }
     } catch (err) {
       console.error("Fetch salesmen error:", err);
+      showToast("Gagal menarik data Salesman. Pastikan tab sheet bernama 'Daftar Salesman' dan script aktif.", "error");
+    }
+  };
+
+  const handleFetchProductsFromSheets = async () => {
+    if (!sheetsScriptUrl) return;
+    try {
+      const response = await fetch(sheetsScriptUrl, {
+        method: "POST",
+        mode: "cors",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({ action: "getProducts" })
+      });
+      const text = await response.text();
+      const resData = JSON.parse(text);
+      if (resData.success && resData.products) {
+        const normalized: Product[] = resData.products.map((item: any) => ({
+          id: String(item["ID Produk"] || item.id),
+          name: String(item["Nama Produk"] || item.name),
+          category: String(item["Kategori Produk"] || item.category || "-"),
+          price: Number(item["Harga Standar"] || item.price || 0),
+          skuCode: String(item["SKU Code"] || item.skuCode || "-"),
+          isActive: true
+        }));
+        setProducts(normalized);
+        localStorage.setItem("KPI_DB_PRODUCTS", JSON.stringify(normalized));
+        showToast("Berhasil menarik data Produk dari Google Sheets!", "success");
+      }
+    } catch (err) {
+      console.error("Fetch products error:", err);
     }
   };
 
@@ -2872,6 +2906,12 @@ export default function App() {
                   <span className="text-xs font-bold text-[#8C8C70] uppercase tracking-wider">
                     Daftar Anggota Salesman Aktif ({salesmen.length})
                   </span>
+                  <button 
+                    onClick={handleFetchSalesmenFromSheets}
+                    className="text-[10px] bg-white border border-[#E5E5DF] px-2 py-1 rounded-md hover:bg-gray-50 uppercase font-bold text-[#4A4A3C]"
+                  >
+                    Sync Data
+                  </button>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -2973,6 +3013,12 @@ export default function App() {
                   <span className="text-xs font-bold text-[#8C8C70] uppercase tracking-wider">
                     Daftar Inventaris Produk ({products.length})
                   </span>
+                  <button 
+                    onClick={handleFetchProductsFromSheets}
+                    className="text-[10px] bg-white border border-[#E5E5DF] px-2 py-1 rounded-md hover:bg-gray-50 uppercase font-bold text-[#4A4A3C]"
+                  >
+                    Sync Data
+                  </button>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -3779,7 +3825,7 @@ export default function App() {
                         </p>
 
                         {(() => {
-                          const publicUrl = "https://docs.google.com/forms/d/e/1FAIpQLSd6ZG5nRGTKbiW00xzdbuoFQ_65_WJf3JVHFDMtyYGfeKcEow/viewform?pli=1";
+                          const publicUrl = "https://docs.google.com/forms/d/e/1FAIpQLScX4GaMKzI0wjwDtzaXZ9r5IUiX5-uDSTCCFbitrH7Ckz-iQQ/viewform";
                           const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(publicUrl)}`;
                           
                           const handleDownloadQR = async () => {
@@ -3996,7 +4042,7 @@ function createCustomerProfilingForm() {
 
                           <button
                             type="button"
-                            onClick={() => window.open("https://docs.google.com/forms/d/e/1FAIpQLSd6ZG5nRGTKbiW00xzdbuoFQ_65_WJf3JVHFDMtyYGfeKcEow/viewform?pli=1", "_blank")}
+                            onClick={() => window.open("https://docs.google.com/forms/d/e/1FAIpQLScX4GaMKzI0wjwDtzaXZ9r5IUiX5-uDSTCCFbitrH7Ckz-iQQ/viewform", "_blank")}
                             className="w-full mb-3 py-3 px-4 font-black rounded-xl transition cursor-pointer flex items-center justify-center gap-2 text-xs uppercase tracking-wider bg-indigo-700 text-white hover:bg-indigo-800 shadow-md hover:shadow-lg"
                           >
                             <ExternalLink className="w-4 h-4" />
