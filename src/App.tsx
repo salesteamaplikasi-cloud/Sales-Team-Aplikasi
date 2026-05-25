@@ -360,6 +360,7 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
     }
     
     // AKSI 8: Impor & Sinkronisasi Respon Google Form
+    // (V3) Update matching: Fokus pada header mengandung 'toko' atau 'outlet' saja agar terhindar dari bentrok dengan 'nama pemilik'
     if (data.action === "importFromGoogleForm") {
       var formSheet = ss.getSheetByName("Jawaban Formulir 1") || ss.getSheetByName("Form Responses 1") || ss.getSheetByName("Form Responses");
       if (!formSheet) {
@@ -400,12 +401,13 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
           var val = rowVal[j];
           if (val === undefined || val === null) val = "";
           
-          if (headerCol.indexOf("toko") > -1 || headerCol.indexOf("nama") > -1 || headerCol.indexOf("outlet") > -1) {
+          if (j === 1) { 
+            // Ambil Nama Toko selalu dari Kolom B (Index 1)
             item.name = val.toString().trim();
-          } else if (headerCol.indexOf("alamat") > -1 || headerCol.indexOf("lokasi") > -1) {
-            item.address = val.toString().trim();
           } else if (headerCol.indexOf("sales") > -1 || headerCol.indexOf("salesman") > -1) {
             item.salesmanName = val.toString().trim();
+          } else if (headerCol.indexOf("alamat") > -1 || headerCol.indexOf("lokasi") > -1) {
+            item.address = val.toString().trim();
           } else if (headerCol.indexOf("jenis") > -1 || headerCol.indexOf("sektor") > -1 || headerCol.indexOf("kategori") > -1) {
             item.jenisToko = val.toString().trim();
           } else if (headerCol.indexOf("omzet") > -1 || headerCol.indexOf("belanja") > -1 || headerCol.indexOf("estimasi") > -1 || headerCol.indexOf("kas") > -1) {
@@ -433,6 +435,54 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
     
+    // AKSI 9: Tarik Data Salesman
+    if (data.action === "getSalesmen") {
+      var sheet = ss.getSheetByName("Daftar Salesman");
+      if (!sheet) {
+        return ContentService.createTextOutput(JSON.stringify({ success: true, salesmen: [] })).setMimeType(ContentService.MimeType.JSON);
+      }
+      var lastRow = sheet.getLastRow();
+      if (lastRow <= 1) {
+        return ContentService.createTextOutput(JSON.stringify({ success: true, salesmen: [] })).setMimeType(ContentService.MimeType.JSON);
+      }
+      var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+      var rawData = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
+      var salesmenList = [];
+      for (var i = 0; i < rawData.length; i++) {
+        var rowVal = rawData[i];
+        var item = {};
+        for (var j = 0; j < headers.length; j++) {
+          item[headers[j]] = rowVal[j];
+        }
+        salesmenList.push(item);
+      }
+      return ContentService.createTextOutput(JSON.stringify({ success: true, salesmen: salesmenList })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // AKSI 10: Tarik Data Produk
+    if (data.action === "getProducts") {
+      var sheet = ss.getSheetByName("Daftar Produk SKU") || ss.getSheetByName("Daftar Produk");
+      if (!sheet) {
+        return ContentService.createTextOutput(JSON.stringify({ success: true, products: [] })).setMimeType(ContentService.MimeType.JSON);
+      }
+      var lastRow = sheet.getLastRow();
+      if (lastRow <= 1) {
+        return ContentService.createTextOutput(JSON.stringify({ success: true, products: [] })).setMimeType(ContentService.MimeType.JSON);
+      }
+      var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+      var rawData = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
+      var productsList = [];
+      for (var i = 0; i < rawData.length; i++) {
+        var rowVal = rawData[i];
+        var item = {};
+        for (var j = 0; j < headers.length; j++) {
+          item[headers[j]] = rowVal[j];
+        }
+        productsList.push(item);
+      }
+      return ContentService.createTextOutput(JSON.stringify({ success: true, products: productsList })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     return ContentService.createTextOutput(JSON.stringify({ 
       success: false, 
       message: "Operasi atau aksi '" + data.action + "' tidak dikenali." 
@@ -622,6 +672,13 @@ export default function App() {
     ];
   });
 
+  const REWARDS_CATALOG = katalogHadiah.map(k => ({
+    id: k.id,
+    name: k.name,
+    sponsor: k.sponsor,
+    pointsCost: k.pointsValue
+  }));
+
   // --- REWARDS CRUD HANDLERS ---
   const [rewardModal, setRewardModal] = useState<{ isOpen: boolean; type: 'merchant' | 'catalog'; item?: any }>({ isOpen: false, type: 'merchant' });
 
@@ -694,10 +751,13 @@ export default function App() {
   // --- GOOGLE SHEETS SYNC SYSTEM ---
   const [sheetsScriptUrl, setSheetsScriptUrl] = useState<string>(() => {
     const stored = localStorage.getItem("KPI_SHEETS_SCRIPT_URL");
-    const targetDefault = "https://script.google.com/macros/s/AKfycbxPp41Z06VMS5s7xyFpAjunHk0LV0cBXlBJIkQ9-jJYL9T5xSkrhxsk4Uh1hCFQnE7qow/exec";
+    const targetDefault = "https://script.google.com/macros/s/AKfycbz2a1vnNlVwQl6z77-3b5LYgXZAhprIgH3a_JAl0El5GPPI8xiZZGPdGsapa_mM6S0DQA/exec";
     const oldDefaults = [
       "https://script.google.com/macros/s/AKfycbwXR5ztGzNXMc7wxOyfNIgczvlfZCf83t_SYEvWGPS67DnhLYn8uS9BZVxoSU5ygtY8iA/exec",
-      "https://script.google.com/macros/s/AKfycbzqPNZ-p4BzDtrpx6qRqvYthMMM2wrQGmaGiZDFtUiv5zkDg_G5AWf9gnJd_a8GjiwzZA/exec"
+      "https://script.google.com/macros/s/AKfycbzqPNZ-p4BzDtrpx6qRqvYthMMM2wrQGmaGiZDFtUiv5zkDg_G5AWf9gnJd_a8GjiwzZA/exec",
+      "https://script.google.com/macros/s/AKfycbxPp41Z06VMS5s7xyFpAjunHk0LV0cBXlBJIkQ9-jJYL9T5xSkrhxsk4Uh1hCFQnE7qow/exec",
+      "https://script.google.com/macros/s/AKfycbwx-OO-AGrU1zjePdDN8Uo1QlECRPbC6WItFHZhzWvvMVVRz61KbpYgtHjpJe7ttpFGrA/exec",
+      "https://script.google.com/macros/s/AKfycbxqkcVj_HP1lNvMXlFxM3sntzkfgsJRdo2xBNo-WgpOID3pzkNRMzDAnzXO33HjcLlQgQ/exec"
     ];
     if (!stored || stored.trim() === "" || stored.includes("placeholder") || oldDefaults.includes(stored.trim())) {
       localStorage.setItem("KPI_SHEETS_SCRIPT_URL", targetDefault);
@@ -707,10 +767,13 @@ export default function App() {
   });
   const [sheetsLibraryUrl, setSheetsLibraryUrl] = useState<string>(() => {
     const stored = localStorage.getItem("KPI_SHEETS_LIBRARY_URL");
-    const targetDefault = "https://script.google.com/macros/library/d/1y8VqApcuL-QYGyNyZFB0kF3MI7T9qwCtptmzUpQbNL34H-Gz0LCJBxkt/4";
+    const targetDefault = "https://script.google.com/macros/library/d/1y8VqApcuL-QYGyNyZFB0kF3MI7T9qwCtptmzUpQbNL34H-Gz0LCJBxkt/10";
     const oldDefaults = [
       "https://script.google.com/macros/library/d/1y8VqApcuL-QYGyNyZFB0kF3MI7T9qwCtptmzUpQbNL34H-Gz0LCJBxkt/1",
-      "https://script.google.com/macros/library/d/1y8VqApcuL-QYGyNyZFB0kF3MI7T9qwCtptmzUpQbNL34H-Gz0LCJBxkt/3"
+      "https://script.google.com/macros/library/d/1y8VqApcuL-QYGyNyZFB0kF3MI7T9qwCtptmzUpQbNL34H-Gz0LCJBxkt/3",
+      "https://script.google.com/macros/library/d/1y8VqApcuL-QYGyNyZFB0kF3MI7T9qwCtptmzUpQbNL34H-Gz0LCJBxkt/4",
+      "https://script.google.com/macros/library/d/1y8VqApcuL-QYGyNyZFB0kF3MI7T9qwCtptmzUpQbNL34H-Gz0LCJBxkt/7",
+      "https://script.google.com/macros/library/d/1y8VqApcuL-QYGyNyZFB0kF3MI7T9qwCtptmzUpQbNL34H-Gz0LCJBxkt/8"
     ];
     if (!stored || stored.trim() === "" || oldDefaults.includes(stored.trim())) {
       localStorage.setItem("KPI_SHEETS_LIBRARY_URL", targetDefault);
@@ -1172,19 +1235,22 @@ export default function App() {
       const resData = JSON.parse(text);
       if (resData.success && resData.products) {
         const normalized: Product[] = resData.products.map((item: any) => ({
-          id: String(item["ID Produk"] || item.id),
-          name: String(item["Nama Produk"] || item.name),
-          category: String(item["Kategori Produk"] || item.category || "-"),
-          price: Number(item["Harga Standar"] || item.price || 0),
+          id: String(item["IDsku"] || item["ID Produk"] || item.id),
+          name: String(item["Nama SKU Produk"] || item["Nama Produk"] || item.name),
+          category: String(item["Kategori"] || item["Kategori Produk"] || item.category || "-"),
+          price: Number(item["Harga Jual (Rp)"] || item["Harga Standar"] || item.price || 0),
           skuCode: String(item["SKU Code"] || item.skuCode || "-"),
           isActive: true
         }));
         setProducts(normalized);
         localStorage.setItem("KPI_DB_PRODUCTS", JSON.stringify(normalized));
         showToast("Berhasil menarik data Produk dari Google Sheets!", "success");
+      } else {
+        showToast(`Gagal menarik data: ${resData.message || "Pastikan tab sheet bernama 'Daftar Produk SKU' atau 'Daftar Produk' sudah ada."}`, "error");
       }
     } catch (err) {
       console.error("Fetch products error:", err);
+      showToast("Gagal menghubungi Google Apps Script untuk menarik data produk.", "error");
     }
   };
 
@@ -1434,7 +1500,11 @@ export default function App() {
           showToast("Tidak ada mitra toko baru yang unik untuk diimpor (semua sudah terdaftar sebelumnya).", "info");
         }
       } else {
-        showToast(`Gagal import Google Form: ${resData.message}`, "error");
+        if (resData.message && resData.message.includes("tidak dikenali")) {
+          showToast(`Gagal: Apps Script versi lama! Buka Menu Akun -> Setup Google Sheets -> Salin kode terbaru -> Lakukan 'New Deployment' di Google Apps Script.`, "error");
+        } else {
+          showToast(`Gagal import Google Form: ${resData.message}`, "error");
+        }
       }
     } catch (err) {
       console.error("Import google form error:", err);
@@ -3306,11 +3376,11 @@ export default function App() {
                       <div>
                         <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1.5 flex items-center justify-between">
                           <span>URL Deploy Web App Apps Script</span>
-                          {sheetsScriptUrl !== "https://script.google.com/macros/s/AKfycbxPp41Z06VMS5s7xyFpAjunHk0LV0cBXlBJIkQ9-jJYL9T5xSkrhxsk4Uh1hCFQnE7qow/exec" && (
+                          {sheetsScriptUrl !== "https://script.google.com/macros/s/AKfycbz2a1vnNlVwQl6z77-3b5LYgXZAhprIgH3a_JAl0El5GPPI8xiZZGPdGsapa_mM6S0DQA/exec" && (
                             <button
                               type="button"
                               onClick={() => {
-                                const targetDefault = "https://script.google.com/macros/s/AKfycbxPp41Z06VMS5s7xyFpAjunHk0LV0cBXlBJIkQ9-jJYL9T5xSkrhxsk4Uh1hCFQnE7qow/exec";
+                                const targetDefault = "https://script.google.com/macros/s/AKfycbz2a1vnNlVwQl6z77-3b5LYgXZAhprIgH3a_JAl0El5GPPI8xiZZGPdGsapa_mM6S0DQA/exec";
                                 setSheetsScriptUrl(targetDefault);
                                 localStorage.setItem("KPI_SHEETS_SCRIPT_URL", targetDefault);
                                 showToast("URL Web App default Anda berhasil dipulihkan!", "success");
@@ -3337,11 +3407,11 @@ export default function App() {
                       <div>
                         <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1.5 flex items-center justify-between">
                           <span>URL Library Google Apps Script</span>
-                          {sheetsLibraryUrl !== "https://script.google.com/macros/library/d/1y8VqApcuL-QYGyNyZFB0kF3MI7T9qwCtptmzUpQbNL34H-Gz0LCJBxkt/4" && (
+                          {sheetsLibraryUrl !== "https://script.google.com/macros/library/d/1y8VqApcuL-QYGyNyZFB0kF3MI7T9qwCtptmzUpQbNL34H-Gz0LCJBxkt/10" && (
                             <button
                               type="button"
                               onClick={() => {
-                                const targetDefault = "https://script.google.com/macros/library/d/1y8VqApcuL-QYGyNyZFB0kF3MI7T9qwCtptmzUpQbNL34H-Gz0LCJBxkt/4";
+                                const targetDefault = "https://script.google.com/macros/library/d/1y8VqApcuL-QYGyNyZFB0kF3MI7T9qwCtptmzUpQbNL34H-Gz0LCJBxkt/10";
                                 setSheetsLibraryUrl(targetDefault);
                                 localStorage.setItem("KPI_SHEETS_LIBRARY_URL", targetDefault);
                                 showToast("URL Library default berhasil dipulihkan!", "success");
@@ -3378,7 +3448,7 @@ export default function App() {
                         <div className="flex items-center justify-between text-[10px] mt-1 pt-1 border-t border-[#E5E5DF]/60">
                           <span className="text-[#8C8C70] font-semibold">Spreadsheet Library:</span>
                           <a 
-                            href={sheetsLibraryUrl || "https://script.google.com/macros/library/d/1y8VqApcuL-QYGyNyZFB0kF3MI7T9qwCtptmzUpQbNL34H-Gz0LCJBxkt/4"} 
+                            href={sheetsLibraryUrl || "https://script.google.com/macros/library/d/1y8VqApcuL-QYGyNyZFB0kF3MI7T9qwCtptmzUpQbNL34H-Gz0LCJBxkt/10"} 
                             target="_blank" 
                             rel="noreferrer"
                             className="font-mono text-[10px] text-[#5A5A40] underline hover:text-[#4A4A3C] truncate max-w-[150px]"
@@ -3585,7 +3655,7 @@ export default function App() {
                         </span>
                       </div>
                       <button
-                        onClick={handleSyncLoyaltyToSheets}
+                        onClick={() => handleSyncLoyaltyToSheets()}
                         disabled={isSyncingLoyalty || customers.length === 0}
                         className="w-full py-2 bg-[#4A4238] text-white hover:bg-[#342D26] disabled:bg-[#8C8C70]/30 disabled:cursor-not-allowed rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-3xs"
                       >
@@ -4181,7 +4251,7 @@ function createCustomerProfilingForm() {
                         <table className="w-full text-left border-collapse">
                           <thead>
                             <tr className="border-b border-[#E5E5DF] text-[10px] uppercase tracking-wider text-[#8C8C70] font-black bg-[#E5E5DF]/10">
-                              <th className="py-3 px-3">Toko & Kelas Tier</th>
+                              <th className="py-3 px-3">NAMA TOKO</th>
                               <th className="py-3 px-3">Sales & Area</th>
                               <th className="py-3 px-3">Statistik Toko</th>
                               <th className="py-3 px-3">Poin Loyalitas</th>
@@ -5282,9 +5352,10 @@ function createCustomerProfilingForm() {
                     </label>
                     <input
                       type="text"
-                      readOnly
-                      value={newCustomer.area || "Semarang"}
-                      className="w-full bg-[#E5E5DF]/35 border border-[#E5E5DF] rounded-xl px-3 py-2 text-xs font-bold text-[#8C8C70] focus:outline-hidden"
+                      value={newCustomer.area}
+                      onChange={(e) => setNewCustomer({ ...newCustomer, area: e.target.value })}
+                      placeholder="Nama Area"
+                      className="w-full bg-white border border-[#E5E5DF] rounded-xl px-3 py-2 text-xs font-bold text-[#4A4A3C] focus:outline-hidden"
                     />
                   </div>
                 </div>

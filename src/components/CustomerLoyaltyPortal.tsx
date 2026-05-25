@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useRef } from "react";
+import * as XLSX from "xlsx";
 import { motion, AnimatePresence } from "motion/react";
-import { Crown, Sparkles, Check, Loader2, X, History, Gift } from "lucide-react";
+import { Crown, Sparkles, Check, Loader2, X, History, Gift, Upload } from "lucide-react";
 
 interface CustomerLoyaltyPortalProps {
   customers: any[];
@@ -131,6 +132,47 @@ export const CustomerLoyaltyPortal: React.FC<CustomerLoyaltyPortalProps> = ({
       await handleSyncLoyaltyToSheets(updated, true);
     }
   };
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportXLSX = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const data = new Uint8Array(evt.target?.result as ArrayBuffer);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const jsonData: any[] = XLSX.utils.sheet_to_json(sheet);
+
+      const newCustomers = jsonData.map((row: any) => ({
+        id: "c-" + Date.now() + "-" + Math.random(),
+        name: row['Nama Toko / Outlet Anda'] || "Tanpa Nama",
+        address: row['Alamat Lengkap Outlet'] || "-",
+        salesmanName: row['Pilih Sales Wilayah Anda'] || salesmen[0]?.name || "RIZKY",
+        area: salesmen[0]?.area || "Semarang",
+        jenisToko: row['Jenis & Sektor Toko'] || "Sembako",
+        estimatedOmzet: Number(row['Estimasi Kas Belanja Outlet Per Bulan (Rupiah)']) || 0,
+        notesPerDay: 0,
+        storeAgeYears: Number(row['Lama Toko Berdiri (Tahun)']) || 0,
+        ownership: row['Status Sewa Bangunan'] || "Milik Sendiri",
+        points: 50,
+        tier: "Bronze",
+        createdAt: row['Tanggal Daftar'] || new Date().toISOString(),
+        actionsLog: []
+      }));
+
+      const updated = [...newCustomers, ...customers];
+      setCustomers(updated);
+      try {
+        localStorage.setItem("KPI_LOYALTY_CUSTOMERS", JSON.stringify(updated));
+      } catch (_) {}
+      showToast(`Berhasil mengimpor ${newCustomers.length} toko!`, "success");
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto px-2 py-4">
@@ -468,9 +510,19 @@ export const CustomerLoyaltyPortal: React.FC<CustomerLoyaltyPortalProps> = ({
           </div>
           
           <div className="mb-4">
-            <h3 className="text-sm font-black text-[#4A4A3C] uppercase tracking-wider">
-              Formulir Pendaftaran Profiling Mandiri Pelanggan
-            </h3>
+            <div className="flex justify-between items-center">
+              <h3 className="text-sm font-black text-[#4A4A3C] uppercase tracking-wider">
+                Formulir Pendaftaran Profiling Mandiri Pelanggan
+              </h3>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#5A5A40] text-white text-[10px] font-bold rounded-lg cursor-pointer hover:bg-[#4A4A3C]"
+              >
+                <Upload className="w-3 h-3" />
+                Impor .xlsx
+              </button>
+              <input type="file" ref={fileInputRef} accept=".xlsx, .xls" onChange={handleImportXLSX} className="hidden" />
+            </div>
             <p className="text-[11px] text-[#8C8C70] mt-0.5">
               Bergabunglah dengan program loyalitas pedagang retail DKR untuk mendapatkan akses potongan harga eksklusif dan instentif hadiah sponsor.
             </p>
