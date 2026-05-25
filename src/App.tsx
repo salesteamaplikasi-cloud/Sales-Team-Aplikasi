@@ -530,6 +530,10 @@ export default function App() {
   const [kpiSelectedDate, setKpiSelectedDate] = useState<string>("ALL");
   const [kpiSelectedWeek, setKpiSelectedWeek] = useState<string>("ALL");
   const [kpiSelectedMonth, setKpiSelectedMonth] = useState<string>("ALL");
+  
+  // Riwayat Audit filters
+  const [auditFilterStartDate, setAuditFilterStartDate] = useState<string>("");
+  const [auditFilterEndDate, setAuditFilterEndDate] = useState<string>("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [deleteConfirmProductId, setDeleteConfirmProductId] = useState<string | null>(null);
   const [deleteConfirmCustomerId, setDeleteConfirmCustomerId] = useState<string | null>(null);
@@ -1996,10 +2000,16 @@ export default function App() {
   };
 
   // --- CALCULATION HELPER STATS FOR TAB DISPLAYS ---
-  const totalAuditSaved = reports.length;
-  const grandTotalCollection = reports.reduce((sum, r) => sum + r.billsReceived, 0);
-  const avgSkuPerVisit = reports.length > 0 ? (reports.reduce((sum, r) => sum + r.skuTotal, 0) / reports.length).toFixed(1) : "0";
   const targetDatasetForKpi = kpiDataSource === "sheets" ? fetchedReports : reports;
+  const filteredAuditReports = targetDatasetForKpi.filter((rep: any) => {
+    let pass = true;
+    if (auditFilterStartDate && rep.date < auditFilterStartDate) pass = false;
+    if (auditFilterEndDate && rep.date > auditFilterEndDate) pass = false;
+    return pass;
+  });
+  const totalAuditSaved = targetDatasetForKpi.length;
+  const grandTotalCollection = targetDatasetForKpi.reduce((sum, r) => sum + r.billsReceived, 0);
+  const avgSkuPerVisit = targetDatasetForKpi.length > 0 ? (targetDatasetForKpi.reduce((sum, r) => sum + r.skuTotal, 0) / targetDatasetForKpi.length).toFixed(1) : "0";
 
   return (
     <div className="min-h-screen bg-[#FAF9F6] text-[#4A4A3C] font-sans selection:bg-[#5A5A40] selection:text-white flex flex-col md:flex-row">
@@ -2201,7 +2211,7 @@ export default function App() {
             </div>
             {!isSidebarCollapsed && (
               <span className="text-[10px] bg-[#4A4A3C]/10 text-[#4A4A3C] px-2 py-0.5 rounded-md font-mono">
-                {reports.length}
+                {targetDatasetForKpi.length}
               </span>
             )}
           </button>
@@ -2389,7 +2399,7 @@ export default function App() {
                     <span>Riwayat Audit</span>
                   </div>
                   <span className="text-[10px] bg-[#4A4A3C]/15 text-[#4A4A3C] px-2 py-0.5 rounded font-mono font-bold">
-                    {reports.length} Records
+                    {targetDatasetForKpi.length} Records
                   </span>
                 </button>
 
@@ -3158,10 +3168,10 @@ export default function App() {
                   </p>
                 </div>
                 
-                {reports.length > 0 && (
+                {filteredAuditReports.length > 0 && (
                   <button
                     onClick={() => {
-                      const wsData = reports.map((r, index) => ({
+                      const wsData = filteredAuditReports.map((r: any, index: number) => ({
                         "No": index + 1,
                         "Tanggal": r.date,
                         "Nama Salesman": r.salesmanName,
@@ -3209,10 +3219,47 @@ export default function App() {
                 )}
               </div>
 
+              {/* Filter Area */}
+              <div className="bg-[#FAF9F6] rounded-2xl p-4 border border-[#E5E5DF] shadow-xs flex flex-col md:flex-row gap-4">
+                <div className="flex-1">
+                  <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+                    Tanggal Mulai
+                  </label>
+                  <input
+                    type="date"
+                    value={auditFilterStartDate}
+                    onChange={(e) => setAuditFilterStartDate(e.target.value)}
+                    className="w-full bg-white border border-[#E5E5DF] text-[#4A4A3C] font-mono text-sm px-3 py-2 rounded-xl focus:outline-hidden focus:border-[#8C8C70]"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+                    Tanggal Akhir
+                  </label>
+                  <input
+                    type="date"
+                    value={auditFilterEndDate}
+                    onChange={(e) => setAuditFilterEndDate(e.target.value)}
+                    className="w-full bg-white border border-[#E5E5DF] text-[#4A4A3C] font-mono text-sm px-3 py-2 rounded-xl focus:outline-hidden focus:border-[#8C8C70]"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <button
+                    onClick={() => {
+                      setAuditFilterStartDate("");
+                      setAuditFilterEndDate("");
+                    }}
+                    className="px-4 py-2 hover:bg-[#E5E5DF]/50 text-[#8C8C70] text-xs font-bold uppercase tracking-wider rounded-xl transition cursor-pointer h-[38px] border border-transparent hover:border-[#E5E5DF]"
+                  >
+                    Reset Filter
+                  </button>
+                </div>
+              </div>
+
               {/* REPORT CARDS VIEW */}
-              {reports.length > 0 ? (
+              {filteredAuditReports.length > 0 ? (
                 <div className="grid grid-cols-1 gap-4">
-                  {reports.map((rep) => (
+                  {filteredAuditReports.map((rep: any) => (
                     <div
                       key={rep.id}
                       className="bg-[#FAF9F6] rounded-3xl p-6 border border-[#E5E5DF] shadow-xs hover:border-[#8C8C70] transition-all duration-150 flex flex-col lg:flex-row lg:items-center justify-between gap-6"
