@@ -30,7 +30,6 @@ export interface Product {
   id: string;
   name: string;
   category?: string;
-  price?: number;
   skuCode?: string;
   isActive: boolean;
 }
@@ -38,7 +37,6 @@ export interface Product {
 export interface KpiReportProduct {
   productId: string;
   productName: string;
-  quantity: number;
 }
 
 export interface KpiReport {
@@ -52,7 +50,9 @@ export interface KpiReport {
   ec: number; // EC (Order)
   skuTotal: number; // SKU Total
   operationalCost: number; // Biaya Operasional
-  billsReceived: number; // Tagihan Didapat (Rp)
+  billsReceived: number; // Tagihan Bayar Tunai
+  billsTransfer?: number; // Tagihan Bayar Transfer
+  billsGiro?: number; // Tagihan Giro
   productsDetail?: KpiReportProduct[]; // Optional dynamic product details
   notes?: string;
   createdAt: string;
@@ -69,6 +69,8 @@ export interface ImportParsingResult {
   skuTotal?: number;
   operationalCost?: number;
   billsReceived?: number;
+  billsTransfer?: number;
+  billsGiro?: number;
   rawTextUsed: string;
   warnings: string[];
 }

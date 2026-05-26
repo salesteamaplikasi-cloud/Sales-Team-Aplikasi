@@ -102,7 +102,7 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
       var sheet = getOrCreateGlobalSheet(ss, "Laporan KPI Sales", [
         "ID Laporan", "Tanggal KPI", "Nama Salesman", "Siklus", 
         "TC (Amplop)", "CP (Kunjungan)", "EC (Order)", "SKU Total", 
-        "Tagihan Didapat (Rp)", "Biaya Operasional (Rp)", "Catatan", 
+        "Tagihan Bayar Tunai", "Tagihan Bayar Transfer", "Tagihan Giro", "Biaya Operasional (Rp)", "Catatan", 
         "Tanggal Dibuat", "Rincian SKU Produk"
       ], "#5A5A40");
       
@@ -110,18 +110,18 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
       var productsStr = "";
       if (rep.productsDetail && rep.productsDetail.length > 0) {
         productsStr = rep.productsDetail.map(function(p) {
-          return p.productName + " (" + p.quantity + " pcs)";
+          return p.productName;
         }).join(", ");
       }
       
       sheet.appendRow([
         rep.id, rep.date, rep.salesmanName, rep.cycle,
         rep.tc, rep.cp, rep.ec, rep.skuTotal,
-        rep.billsReceived, rep.operationalCost, rep.notes || "",
+        rep.billsReceived, rep.billsTransfer || 0, rep.billsGiro || 0, rep.operationalCost, rep.notes || "",
         rep.createdAt, productsStr
       ]);
       
-      autoResizeColumns(sheet, 13);
+      autoResizeColumns(sheet, 15);
       
       return ContentService.createTextOutput(JSON.stringify({ 
         success: true, 
@@ -131,12 +131,16 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
     
     // AKSI 3: Sinkronisasi Laporan KPI Masal (Bulk)
     if (data.action === "syncAll") {
-      var sheet = getOrCreateGlobalSheet(ss, "Laporan KPI Sales", [
+      var headers = [
         "ID Laporan", "Tanggal KPI", "Nama Salesman", "Siklus", 
         "TC (Amplop)", "CP (Kunjungan)", "EC (Order)", "SKU Total", 
-        "Tagihan Didapat (Rp)", "Biaya Operasional (Rp)", "Catatan", 
+        "Tagihan Bayar Tunai", "Tagihan Bayar Transfer", "Tagihan Giro", "Biaya Operasional (Rp)", "Catatan", 
         "Tanggal Dibuat", "Rincian SKU Produk"
-      ], "#5A5A40");
+      ];
+      var sheet = getOrCreateGlobalSheet(ss, "Laporan KPI Sales", headers, "#5A5A40");
+      
+      // Update header baris pertama menyelaraskan dengan kolom terbaru
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
       
       var reps = data.reports;
       if (sheet.getLastRow() > 1) {
@@ -148,19 +152,19 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
         var productsStr = "";
         if (rep.productsDetail && rep.productsDetail.length > 0) {
           productsStr = rep.productsDetail.map(function(p) {
-            return p.productName + " (" + p.quantity + " pcs)";
+            return p.productName;
           }).join(", ");
         }
         
         sheet.appendRow([
           rep.id, rep.date, rep.salesmanName, rep.cycle,
           rep.tc, rep.cp, rep.ec, rep.skuTotal,
-          rep.billsReceived, rep.operationalCost, rep.notes || "",
+          rep.billsReceived, rep.billsTransfer || 0, rep.billsGiro || 0, rep.operationalCost, rep.notes || "",
           rep.createdAt, productsStr
         ]);
       }
       
-      autoResizeColumns(sheet, 13);
+      autoResizeColumns(sheet, 15);
       
       return ContentService.createTextOutput(JSON.stringify({ 
         success: true, 
@@ -197,7 +201,7 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
     // AKSI 5: Sinkronisasi Database SKU Produk
     if (data.action === "syncProducts") {
       var sheet = getOrCreateGlobalSheet(ss, "Daftar Produk SKU", [
-        "IDsku", "Nama SKU Produk", "Kategori", "Harga Jual (Rp)", "Kapasitas Unit"
+        "IDsku", "Nama SKU Produk", "Kategori", "SKU Code"
       ], "#3B3D2A");
       
       var products = data.products;
@@ -208,11 +212,11 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
       for (var i = 0; i < products.length; i++) {
         var p = products[i];
         sheet.appendRow([
-          p.id, p.name, p.category, p.price, p.capacity || "-"
+          p.id, p.name, p.category, p.skuCode || "-"
         ]);
       }
       
-      autoResizeColumns(sheet, 5);
+      autoResizeColumns(sheet, 4);
       
       return ContentService.createTextOutput(JSON.stringify({ 
         success: true, 
@@ -813,6 +817,8 @@ export default function App() {
   const [skuTotal, setSkuTotal] = useState<number>(0);
   const [operationalCost, setOperationalCost] = useState<number>(0);
   const [billsReceived, setBillsReceived] = useState<number>(0);
+  const [billsTransfer, setBillsTransfer] = useState<number>(0);
+  const [billsGiro, setBillsGiro] = useState<number>(0);
   const [reportDate, setReportDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState<string>("");
 
@@ -837,11 +843,10 @@ export default function App() {
     phone: ""
   });
 
-  const [productModal, setProductModal] = useState<{ isOpen: boolean; id?: string; name: string; category: string; price: number; skuCode: string }>({
+  const [productModal, setProductModal] = useState<{ isOpen: boolean; id?: string; name: string; category: string; skuCode: string }>({
     isOpen: false,
     name: "",
     category: "",
-    price: 0,
     skuCode: ""
   });
 
@@ -935,17 +940,15 @@ export default function App() {
 
   // When a product is selected in the picker
   const handleSelectProduct = (product: Product) => {
-    const currentQty = selectedProducts[product.id] || 0;
-    const nextQty = currentQty + 1;
-    
+    // Treat presence in object as selected
     const nextSelected = {
       ...selectedProducts,
-      [product.id]: nextQty
+      [product.id]: 1
     };
     setSelectedProducts(nextSelected);
 
-    // Dynamic SKU update: total of all quantities of unique product categories helper
-    const newSkuTotalCount = (Object.values(nextSelected) as number[]).reduce((sum, qty) => sum + qty, 0);
+    // Compute SKU Total: simply the number of unique focus products selected
+    const newSkuTotalCount = Object.keys(nextSelected).length;
     setSkuTotal(newSkuTotalCount);
 
     showToast(`Produk "${product.name}" ditambahkan ke rincian penjualan.`, "success");
@@ -958,12 +961,12 @@ export default function App() {
     if (qty <= 0) {
       delete nextSelected[productId];
     } else {
-      nextSelected[productId] = qty;
+      nextSelected[productId] = 1; // force max 1 just in case
     }
     setSelectedProducts(nextSelected);
 
     // Compute new SKU Total
-    const newSkuTotalCount = (Object.values(nextSelected) as number[]).reduce((sum, qty) => sum + qty, 0);
+    const newSkuTotalCount = Object.keys(nextSelected).length;
     setSkuTotal(newSkuTotalCount);
   };
 
@@ -985,13 +988,11 @@ export default function App() {
     setIsSubmittingReport(true);
 
     // Build productsDetail
-    const productsDetail = Object.entries(selectedProducts).map(([pId, qty]) => {
+    const productsDetail = Object.entries(selectedProducts).map(([pId, _]) => {
       const prod = products.find(p => p.id === pId);
-      const qtyNum = qty as number;
       return {
         productId: pId,
-        productName: prod ? prod.name : "Produk tidak dikenal",
-        quantity: qtyNum
+        productName: prod ? prod.name : "Produk tidak dikenal"
       };
     });
 
@@ -1007,6 +1008,8 @@ export default function App() {
       skuTotal,
       operationalCost,
       billsReceived,
+      billsTransfer,
+      billsGiro,
       notes,
       productsDetail,
       createdAt: new Date().toISOString()
@@ -1039,6 +1042,8 @@ export default function App() {
     setSelectedProducts({});
     setOperationalCost(0);
     setBillsReceived(0);
+    setBillsTransfer(0);
+    setBillsGiro(0);
     setNotes("");
 
     setIsSubmittingReport(false);
@@ -1163,7 +1168,9 @@ export default function App() {
             ec: Number(item["EC (Order)"] || item.ec || 0),
             skuTotal: Number(item["SKU Total"] || item.skuTotal || 0),
             operationalCost: Number(item["Biaya Operasional (Rp)"] || item.operationalCost || 0),
-            billsReceived: Number(item["Tagihan Didapat (Rp)"] || item.billsReceived || 0),
+            billsReceived: Number(item["Tagihan Bayar Tunai"] || item["Tagihan Didapat (Rp)"] || item.billsReceived || 0),
+            billsTransfer: Number(item["Tagihan Bayar Transfer"] || item.billsTransfer || 0),
+            billsGiro: Number(item["Tagihan Giro"] || item.billsGiro || 0),
             notes: String(item["Catatan"] || item.notes || ""),
             createdAt: String(item["Tanggal Dibuat"] || item.createdAt || ""),
             productsDetail: [] // empty placeholders
@@ -1557,6 +1564,8 @@ export default function App() {
     
     setOperationalCost(result.operationalCost);
     setBillsReceived(result.billsReceived);
+    setBillsTransfer(result.billsTransfer || 0);
+    setBillsGiro(result.billsGiro || 0);
     if (result.notes) {
       setNotes(result.notes);
     }
@@ -1678,7 +1687,6 @@ export default function App() {
       isOpen: true,
       name: "",
       category: "",
-      price: 0,
       skuCode: ""
     });
   };
@@ -1689,7 +1697,6 @@ export default function App() {
       id: p.id,
       name: p.name,
       category: p.category || "",
-      price: p.price || 0,
       skuCode: p.skuCode || ""
     });
   };
@@ -1709,7 +1716,6 @@ export default function App() {
             ...p,
             name: productModal.name.toUpperCase(),
             category: productModal.category,
-            price: Number(productModal.price),
             skuCode: productModal.skuCode
           };
         }
@@ -1724,7 +1730,6 @@ export default function App() {
         id: "p-" + Date.now(),
         name: productModal.name.toUpperCase(),
         category: productModal.category,
-        price: Number(productModal.price),
         skuCode: productModal.skuCode,
         isActive: true
       };
@@ -1734,7 +1739,7 @@ export default function App() {
       showToast(`Produk ${newP.name} berhasil ditambahkan ke database!`);
     }
 
-    setProductModal({ isOpen: false, name: "", category: "", price: 0, skuCode: "" });
+    setProductModal({ isOpen: false, name: "", category: "", skuCode: "" });
   };
 
   const handleDeleteProduct = (id: string, name: string) => {
@@ -2790,7 +2795,6 @@ export default function App() {
                                         <p className="text-[10px] text-[#8C8C70]">{p.category} • {p.skuCode || "-"}</p>
                                       )}
                                     </div>
-                                    <span className="text-[#8C8C70] font-medium">Rp {p.price?.toLocaleString("id-ID") || 0}</span>
                                   </button>
                                 ))}
 
@@ -2812,29 +2816,19 @@ export default function App() {
                         {Object.entries(selectedProducts).map(([pId, qty]) => {
                           const p = products.find(prod => prod.id === pId);
                           if (!p) return null;
-                          const qtyNum = qty as number;
                           return (
                             <div key={pId} className="flex items-center justify-between bg-[#FAF9F6] px-3.5 py-2.5 rounded-xl border border-[#E5E5DF]">
                               <div>
                                 <h4 className="text-xs font-bold text-[#4A4A3C] uppercase">{p.name}</h4>
-                                <span className="text-[10px] text-[#8C8C70] font-mono">Rp {p.price?.toLocaleString("id-ID")}</span>
                               </div>
                               
                               <div className="flex items-center gap-2">
                                 <button
                                   type="button"
-                                  onClick={() => handleUpdateProductQty(pId, qtyNum - 1)}
-                                  className="w-6 h-6 rounded-md bg-[#E5E5DF]/40 text-[#4A4A3C] flex items-center justify-center font-bold hover:bg-[#E5E5DF]/85 text-xs transition"
+                                  onClick={() => handleUpdateProductQty(pId, 0)}
+                                  className="w-8 h-8 rounded-md bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-100 transition"
                                 >
-                                  -
-                                </button>
-                                <span className="w-8 text-center text-xs font-black text-[#5A5A40]">{qtyNum}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleUpdateProductQty(pId, qtyNum + 1)}
-                                  className="w-6 h-6 rounded-md bg-[#E5E5DF]/40 text-[#4A4A3C] flex items-center justify-center font-bold hover:bg-[#E5E5DF]/85 text-xs transition"
-                                >
-                                  +
+                                  <X className="w-4 h-4" />
                                 </button>
                               </div>
                             </div>
@@ -2951,10 +2945,10 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* TAGIHAN DIDAPAT */}
+                    {/* TAGIHAN BAYAR TUNAI */}
                     <div>
                       <label className="block text-xs font-bold text-[#8C8C70] uppercase tracking-widest mb-1.5">
-                        TAGIHAN DIDAPAT (RP) *
+                        Tagihan Bayar Tunai *
                       </label>
                       <div className="relative">
                         <span className="absolute left-4 top-3.5 text-xs text-[#8C8C70] font-bold">Rp</span>
@@ -2971,6 +2965,42 @@ export default function App() {
                       <p className="text-[10px] text-[#8C8C70] mt-1">
                         Terbilang: <span className="text-[#4A4A3C]/75 font-semibold italic">Rp {billsReceived.toLocaleString("id-ID")} Rupiah</span>
                       </p>
+                    </div>
+
+                    {/* TAGIHAN BAYAR TRANSFER */}
+                    <div>
+                      <label className="block text-xs font-bold text-[#8C8C70] uppercase tracking-widest mb-1.5">
+                        Tagihan Bayar Transfer
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-4 top-3.5 text-xs text-[#8C8C70] font-bold">Rp</span>
+                        <input
+                          type="number"
+                          min="0"
+                          onFocus={(e) => e.target.value === "0" && e.target.select()}
+                          value={billsTransfer}
+                          onChange={(e) => setBillsTransfer(parseInt(e.target.value, 10) || 0)}
+                          className="w-full bg-[#FAF9F6] border border-[#E5E5DF] rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40] focus:bg-white text-[#4A4A3C] font-bold"
+                        />
+                      </div>
+                    </div>
+
+                    {/* TAGIHAN GIRO */}
+                    <div>
+                      <label className="block text-xs font-bold text-[#8C8C70] uppercase tracking-widest mb-1.5">
+                        Tagihan Giro
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-4 top-3.5 text-xs text-[#8C8C70] font-bold">Rp</span>
+                        <input
+                          type="number"
+                          min="0"
+                          onFocus={(e) => e.target.value === "0" && e.target.select()}
+                          value={billsGiro}
+                          onChange={(e) => setBillsGiro(parseInt(e.target.value, 10) || 0)}
+                          className="w-full bg-[#FAF9F6] border border-[#E5E5DF] rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40] focus:bg-white text-[#4A4A3C] font-bold"
+                        />
+                      </div>
                     </div>
 
                   </div>
@@ -3203,7 +3233,6 @@ export default function App() {
                       <tr>
                         <th className="px-6 py-4">Kode SKU / Nama Produk</th>
                         <th className="px-6 py-4">Kategori Produk</th>
-                        <th className="px-6 py-4">Harga Standar</th>
                         <th className="px-6 py-4 text-center">Tindakan</th>
                       </tr>
                     </thead>
@@ -3220,9 +3249,6 @@ export default function App() {
                           </td>
                           <td className="px-6 py-4 text-xs font-semibold text-[#8C8C70]">
                             {p.category || "Umum"}
-                          </td>
-                          <td className="px-6 py-4 text-sm font-bold text-[#4A4A3C]">
-                            Rp {p.price?.toLocaleString("id-ID") || 0}
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center justify-center gap-3">
@@ -3286,7 +3312,9 @@ export default function App() {
                         "EC (Effective Customer)": r.ec,
                         "Total SKU": r.skuTotal,
                         "Biaya Operasional (Rp)": r.operationalCost,
-                        "Tagihan Didapat (Rp)": r.billsReceived,
+                        "Tagihan Tunai": r.billsReceived,
+                        "Tagihan Transfer": r.billsTransfer || 0,
+                        "Tagihan Giro": r.billsGiro || 0,
                         "Catatan / Kendala": r.notes || ""
                       }));
 
@@ -3304,7 +3332,9 @@ export default function App() {
                         { wch: 16 },  // EC
                         { wch: 12 },  // SKU
                         { wch: 22 },  // Biaya Operasional
-                        { wch: 22 },  // Tagihan Didapat
+                        { wch: 20 },  // Tagihan Tunai
+                        { wch: 20 },  // Tagihan Transfer
+                        { wch: 20 },  // Tagihan Giro
                         { wch: 45 }   // Catatan
                       ];
 
@@ -3413,10 +3443,10 @@ export default function App() {
                         {/* Rincian produk yang diinput */}
                         {rep.productsDetail && rep.productsDetail.length > 0 && (
                           <div className="mt-3 flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[10px] font-bold text-[#8C8C70] uppercase">Rincian SKU:</span>
+                            <span className="text-[10px] font-bold text-[#8C8C70] uppercase">Rincian SKU Fokus:</span>
                             {rep.productsDetail.map((prod, i) => (
                               <span key={i} className="bg-[#E5E5DF]/40 py-0.5 px-2 rounded-md text-[10px] text-[#4A4A3C] font-semibold uppercase">
-                                {prod.productName} ({prod.quantity}pcs)
+                                {prod.productName}
                               </span>
                             ))}
                           </div>
@@ -3426,11 +3456,31 @@ export default function App() {
                       {/* Right: Operational Values */}
                       <div className="flex flex-col sm:flex-row lg:flex-col items-start sm:items-center lg:items-end justify-between lg:justify-center gap-4 lg:text-right">
                         <div>
-                          <span className="text-[10px] font-bold text-[#8C8C70] block uppercase">Tagihan Didapat</span>
+                          <span className="text-[10px] font-bold text-[#8C8C70] block uppercase">Bayar Tunai</span>
                           <span className="text-lg font-mono font-black text-[#5A5A40] block">
                             Rp {rep.billsReceived.toLocaleString("id-ID")}
                           </span>
                         </div>
+                        {((rep.billsTransfer || 0) > 0 || (rep.billsGiro || 0) > 0) && (
+                          <div className="flex gap-4">
+                            {(rep.billsTransfer || 0) > 0 && (
+                              <div>
+                                <span className="text-[10px] font-bold text-[#8C8C70] block uppercase">Transfer</span>
+                                <span className="text-sm font-mono font-black text-blue-700 block mt-0.5">
+                                  Rp {(rep.billsTransfer || 0).toLocaleString("id-ID")}
+                                </span>
+                              </div>
+                            )}
+                            {(rep.billsGiro || 0) > 0 && (
+                              <div>
+                                <span className="text-[10px] font-bold text-[#8C8C70] block uppercase">Giro</span>
+                                <span className="text-sm font-mono font-black text-amber-600 block mt-0.5">
+                                  Rp {(rep.billsGiro || 0).toLocaleString("id-ID")}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
                         
                         <div>
                           <span className="text-[10px] font-bold text-[#8C8C70] block uppercase">Operational Cost</span>
@@ -3448,7 +3498,10 @@ export default function App() {
                                 `Tanggal: ${rep.date}\n` +
                                 `Siklus: ${rep.cycle}\n` +
                                 `TC: ${rep.tc} | CP: ${rep.cp} | EC: ${rep.ec} | SKU: ${rep.skuTotal}\n` +
-                                `Ops: Rp ${rep.operationalCost.toLocaleString("id-ID")} | Tagihan: Rp ${rep.billsReceived.toLocaleString("id-ID")}\n` +
+                                `Ops: Rp ${rep.operationalCost.toLocaleString("id-ID")}\n` +
+                                `Tunai: Rp ${rep.billsReceived.toLocaleString("id-ID")}\n` +
+                                `Transfer: Rp ${(rep.billsTransfer || 0).toLocaleString("id-ID")}\n` +
+                                `Giro: Rp ${(rep.billsGiro || 0).toLocaleString("id-ID")}\n` +
                                 `Catatan: ${rep.notes || "-"}`;
                               navigator.clipboard.writeText(detailText);
                               showToast("Rekap laporan disalin ke clipboard!", "success");
@@ -5355,9 +5408,9 @@ function createCustomerProfilingForm() {
                               {initialChar}
                             </div>
                             <div>
-                              <span className="text-[8px] font-extrabold text-[#8C8C70] block uppercase tracking-wide leading-none">Tagihan Didapat</span>
+                              <span className="text-[8px] font-extrabold text-[#8C8C70] block uppercase tracking-wide leading-none">Total Tagihan Termasuk Transfer & Giro</span>
                               <span className="text-[11.5px] font-mono font-black text-indigo-800 mt-0.5 block leading-none">
-                                Rp {g.billsReceived.toLocaleString("id-ID")}
+                                Rp {(g.billsReceived + (g.billsTransfer || 0) + (g.billsGiro || 0)).toLocaleString("id-ID")}
                               </span>
                             </div>
                           </div>
@@ -5737,19 +5790,6 @@ function createCustomerProfilingForm() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
-                    Harga Distributor Standar (Rp)
-                  </label>
-                  <input
-                    type="number"
-                    value={productModal.price}
-                    onChange={(e) => setProductModal({ ...productModal, price: Number(e.target.value) })}
-                    placeholder="Contoh: 12000"
-                    className="w-full bg-[#FAF9F6] border border-[#E5E5DF] rounded-xl px-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40] text-[#4A4A3C] font-bold"
-                  />
-                </div>
-
                 <div className="flex gap-2.5 pt-2">
                   <button
                     type="submit"
@@ -5814,10 +5854,6 @@ function createCustomerProfilingForm() {
                     <div className="flex justify-between">
                       <span className="text-gray-400 font-normal font-sans">Kategori:</span>
                       <span className="text-gray-800">{productToDelete.category || "Umum"}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400 font-normal font-sans">Harga:</span>
-                      <span className="text-emerald-700 font-mono">Rp {productToDelete.price?.toLocaleString("id-ID") || 0}</span>
                     </div>
                   </div>
                 </div>
@@ -5966,7 +6002,7 @@ function createCustomerProfilingForm() {
                       <span>{reportToDelete.tc} / {reportToDelete.cp} / {reportToDelete.ec} / {reportToDelete.skuTotal}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-400 font-normal font-sans">Tagihan Didapat:</span>
+                      <span className="text-gray-400 font-normal font-sans">Tagihan Tunai:</span>
                       <span className="text-emerald-700 font-mono">Rp {reportToDelete.billsReceived.toLocaleString("id-ID")}</span>
                     </div>
                   </div>

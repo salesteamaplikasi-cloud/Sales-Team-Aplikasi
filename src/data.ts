@@ -8,12 +8,12 @@ import { Salesman, Product, KpiReport } from "./types";
 export const INITIAL_SALESMEN: Salesman[] = [];
 
 export const INITIAL_PRODUCTS: Product[] = [
-  { id: "p-1", name: "COTTON BUD YO PIPI", category: "Baby Care", price: 8000, skuCode: "CB-YPP", isActive: true },
-  { id: "p-2", name: "TISSUE YO PIPI POP UP", category: "Tissue", price: 12000, skuCode: "TJ-YPP-PU", isActive: true },
-  { id: "p-3", name: "TISSUE YO PIPI 250S", category: "Tissue", price: 15000, skuCode: "TJ-YPP-250", isActive: true },
-  { id: "p-4", name: "LED MADRIM TOPAZ", category: "Electrical/Lighting", price: 25000, skuCode: "LED-MT", isActive: true },
-  { id: "p-5", name: "LED MADRIM SOLAR TITAN", category: "Electrical/Lighting", price: 45000, skuCode: "LED-MST", isActive: true },
-  { id: "p-6", name: "LED MADRIM RUBY", category: "Electrical/Lighting", price: 32000, skuCode: "LED-MR", isActive: true }
+  { id: "p-1", name: "COTTON BUD YO PIPI", category: "Baby Care", skuCode: "CB-YPP", isActive: true },
+  { id: "p-2", name: "TISSUE YO PIPI POP UP", category: "Tissue", skuCode: "TJ-YPP-PU", isActive: true },
+  { id: "p-3", name: "TISSUE YO PIPI 250S", category: "Tissue", skuCode: "TJ-YPP-250", isActive: true },
+  { id: "p-4", name: "LED MADRIM TOPAZ", category: "Electrical/Lighting", skuCode: "LED-MT", isActive: true },
+  { id: "p-5", name: "LED MADRIM SOLAR TITAN", category: "Electrical/Lighting", skuCode: "LED-MST", isActive: true },
+  { id: "p-6", name: "LED MADRIM RUBY", category: "Electrical/Lighting", skuCode: "LED-MR", isActive: true }
 ];
 
 export const STANDARD_CYCLES = [
