@@ -41,7 +41,8 @@ import {
   ExternalLink,
   Clock,
   CalendarDays,
-  CalendarRange
+  CalendarRange,
+  LogOut
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -488,6 +489,14 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
 }`;
 
 export default function App() {
+  // --- AUTHENTICATION STATE ---
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return localStorage.getItem("KPI_IS_AUTHENTICATED") === "true";
+  });
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+
   // --- STATE LIST MANAGEMENT ---
   const [salesmen, setSalesmen] = useState<Salesman[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -2011,6 +2020,70 @@ export default function App() {
   const grandTotalCollection = targetDatasetForKpi.reduce((sum, r) => sum + r.billsReceived, 0);
   const avgSkuPerVisit = targetDatasetForKpi.length > 0 ? (targetDatasetForKpi.reduce((sum, r) => sum + r.skuTotal, 0) / targetDatasetForKpi.length).toFixed(1) : "0";
 
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (loginEmail === "sales@gmail.com" && loginPassword === "Sales#123") {
+      setIsAuthenticated(true);
+      localStorage.setItem("KPI_IS_AUTHENTICATED", "true");
+      setLoginError("");
+    } else {
+      setLoginError("Email atau password tidak valid.");
+    }
+  };
+
+  if (!isAuthenticated && !customerMode) {
+    return (
+      <div className="min-h-screen bg-[#FAF9F6] text-[#4A4A3C] font-sans flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-3xl shadow-xl border border-[#E5E5DF] max-w-sm w-full">
+          <div className="flex justify-center mb-6">
+            <div className="bg-[#E5E5DF]/30 p-4 rounded-2xl border border-[#E5E5DF]/50">
+              <User className="w-10 h-10 text-[#5A5A40]" />
+            </div>
+          </div>
+          <h1 className="text-2xl font-bold text-center uppercase tracking-tight text-[#4A4A3C] mb-2 font-serif italic">Login Portal</h1>
+          <p className="text-center text-[#8C8C70] text-xs font-semibold mb-8">Silakan masuk untuk kelola Audit KPI Sales</p>
+          
+          {loginError && (
+            <div className="bg-rose-50 text-rose-600 p-3 rounded-xl text-xs font-bold mb-6 text-center border border-rose-100">
+              {loginError}
+            </div>
+          )}
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-2">Email</label>
+              <input 
+                type="email" 
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                className="w-full bg-[#FAF9F6] border border-[#E5E5DF] px-4 py-3 rounded-xl text-sm font-semibold text-[#4A4A3C] focus:border-[#5A5A40] focus:outline-hidden transition"
+                placeholder="Masukkan email"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-2">Password</label>
+              <input 
+                type="password" 
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                className="w-full bg-[#FAF9F6] border border-[#E5E5DF] px-4 py-3 rounded-xl text-sm font-semibold text-[#4A4A3C] focus:border-[#5A5A40] focus:outline-hidden transition"
+                placeholder="Masukkan password"
+                required
+              />
+            </div>
+            <button 
+              type="submit"
+              className="w-full bg-[#5A5A40] hover:bg-[#4A4A3C] text-white font-bold uppercase tracking-widest text-xs py-3.5 rounded-xl cursor-pointer transition shadow-md mt-6"
+            >
+              Masuk Sekarang
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#FAF9F6] text-[#4A4A3C] font-sans selection:bg-[#5A5A40] selection:text-white flex flex-col md:flex-row">
       
@@ -2229,6 +2302,22 @@ export default function App() {
             <Layers className="w-4 h-4 shrink-0" />
             {!isSidebarCollapsed && <span className="truncate">Google Sheets</span>}
           </button>
+
+          {/* Logout Button */}
+          <div className="border-t border-[#E5E5DF] my-2 pt-2">
+            <button
+              onClick={() => {
+                setIsAuthenticated(false);
+                localStorage.setItem("KPI_IS_AUTHENTICATED", "false");
+                setLoginPassword("");
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all text-rose-600 hover:bg-rose-50"
+              title="Keluar / Logout"
+            >
+              <LogOut className="w-4 h-4 shrink-0 cursor-pointer" />
+              {!isSidebarCollapsed && <span className="truncate">Keluar</span>}
+            </button>
+          </div>
         </nav>
 
         {/* Sidebar Footer System Badge */}
@@ -2416,6 +2505,22 @@ export default function App() {
                   <Layers className="w-4 h-4" />
                   Google Sheets Integration
                 </button>
+
+                {/* Logout Button */}
+                <div className="border-t border-[#E5E5DF]/50 my-1 pt-1">
+                  <button
+                    onClick={() => {
+                      setIsAuthenticated(false);
+                      localStorage.setItem("KPI_IS_AUTHENTICATED", "false");
+                      setLoginPassword("");
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="w-full py-2.5 px-4 rounded-xl text-left text-xs font-black uppercase tracking-wider flex items-center gap-3 text-rose-600 hover:bg-rose-50 cursor-pointer"
+                  >
+                    <LogOut className="w-4 h-4 cursor-pointer" />
+                    Keluar / Logout
+                  </button>
+                </div>
               </motion.nav>
             )}
           </AnimatePresence>
