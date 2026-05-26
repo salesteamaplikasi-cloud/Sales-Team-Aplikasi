@@ -3353,14 +3353,6 @@ export default function App() {
                           >
                             <Copy className="w-3.5 h-3.5" /> WA
                           </button>
-                          
-                          <button
-                            onClick={() => handleDeleteReport(rep.id)}
-                            className="p-1 px-2.5 bg-rose-50/50 hover:bg-rose-100 text-rose-600 rounded-lg text-xs transition"
-                            title="Hapus Audit"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
                         </div>
                       </div>
                     </div>
