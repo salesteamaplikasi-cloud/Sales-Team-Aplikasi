@@ -396,23 +396,23 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
           timestamp: ""
         };
         
-        // Mengambil data secara statis berdasarkan urutan kolom (A=0, B=1, ... H=7)
+        // Mengambil data secara statis berdasarkan urutan kolom (A=0, B=1, C=2, D=3... dll)
         item.timestamp = (rowVal[0] !== undefined && rowVal[0] !== null) ? rowVal[0].toString() : "";
         item.name = (rowVal[1] !== undefined && rowVal[1] !== null) ? rowVal[1].toString().trim() : "";
         item.address = (rowVal[2] !== undefined && rowVal[2] !== null) ? rowVal[2].toString().trim() : "";
-        item.jenisToko = (rowVal[3] !== undefined && rowVal[3] !== null) ? rowVal[3].toString().trim() : "Sembako";
+        item.salesmanName = (rowVal[3] !== undefined && rowVal[3] !== null) ? rowVal[3].toString().trim() : "";
         
-        var omzetVal = (rowVal[4] !== undefined && rowVal[4] !== null) ? rowVal[4].toString() : "";
+        item.jenisToko = (rowVal[4] !== undefined && rowVal[4] !== null) ? rowVal[4].toString().trim() : "Sembako";
+        
+        var omzetVal = (rowVal[5] !== undefined && rowVal[5] !== null) ? rowVal[5].toString() : "";
         var num = parseFloat(omzetVal.replace(/[^0-9]/g, ""));
         item.estimatedOmzet = isNaN(num) ? 5000000 : num;
-        
-        item.ownership = (rowVal[5] !== undefined && rowVal[5] !== null) ? rowVal[5].toString().trim() : "Milik Sendiri";
         
         var ageVal = (rowVal[6] !== undefined && rowVal[6] !== null) ? rowVal[6].toString() : "";
         var sage = parseInt(ageVal.replace(/[^0-9]/g, ""), 10);
         item.storeAgeYears = isNaN(sage) ? 2 : sage;
         
-        item.salesmanName = (rowVal[7] !== undefined && rowVal[7] !== null) ? rowVal[7].toString().trim() : "";
+        item.ownership = (rowVal[7] !== undefined && rowVal[7] !== null) ? rowVal[7].toString().trim() : "Milik Sendiri";
         
         if (item.name) {
           importedList.push(item);
