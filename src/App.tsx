@@ -1448,7 +1448,7 @@ export default function App() {
           );
           if (!isDuplicate) {
             const matchedSalesman = salesmen.find(
-              (s) => s.name.toLowerCase() === item.salesmanName.toLowerCase()
+              (s) => s.name.toLowerCase().trim() === (item.salesmanName || "").toLowerCase().trim()
             );
             
             let finalTier: "Platinum" | "Gold" | "Silver" | "Bronze" = "Bronze";
