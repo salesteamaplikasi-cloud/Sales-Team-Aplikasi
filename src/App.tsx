@@ -608,7 +608,13 @@ export default function App() {
   const [fetchedReports, setFetchedReports] = useState<any[]>(() => {
     try {
       const stored = localStorage.getItem("KPI_FETCHED_REPORTS_FROM_SHEETS");
-      if (stored) return JSON.parse(stored);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return parsed.map((item: any) => ({
+          ...item,
+          operationalCost: item.operationalCost || 0
+        }));
+      }
     } catch (_) {}
     return [];
   });
@@ -1394,7 +1400,13 @@ export default function App() {
             cp: Number(item["CP (Kunjungan)"] || item.cp || 0),
             ec: Number(item["EC (Order)"] || item.ec || 0),
             skuTotal: Number(item["SKU Total"] || item.skuTotal || 0),
-            operationalCost: Number(item["Biaya Operasional (Rp)"] || item.operationalCost || 0),
+            operationalCost: Number(
+              item["Biaya Operasional (Rp)"] || 
+              item["Biaya Operasioanal (Rp)"] || 
+              item["Biaya Operasional"] || 
+              item.operationalCost || 
+              0
+            ),
             billsReceived: Number(item["Tagihan Bayar Tunai"] || item["Tagihan Didapat (Rp)"] || item.billsReceived || 0),
             billsTransfer: Number(item["Tagihan Bayar Transfer"] || item.billsTransfer || 0),
             billsGiro: Number(item["Tagihan Giro"] || item.billsGiro || 0),
@@ -3105,7 +3117,7 @@ export default function App() {
                         }}
                         className={`py-3 px-3 rounded-xl border text-xs font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 cursor-pointer ${
                           salesmanStatus === "IZIN"
-                            ? "bg-[#00AA13] border-[#00AA13] text-white shadow-md ring-2 ring-[#00AA13]/20 scale-[1.02]"
+                            ? "bg-amber-400 border-amber-400 text-white shadow-md ring-2 ring-amber-400/20 scale-[1.02]"
                             : "bg-[#F8FAFC] border-[#E2E8F0] text-[#64748B] hover:text-[#00AA13] hover:border-[#00AA13]/50 hover:bg-emerald-50/20"
                         }`}
                       >
@@ -5939,12 +5951,12 @@ function createCustomerProfilingForm() {
                               <div>
                                 <div className="flex justify-between text-[9px] font-black uppercase text-[#64748B] mb-0.5">
                                   <span>Pencapaian Call Plan (CP/TC)</span>
-                                  <span className="text-[#00AA13] font-mono font-bold">{cpPct.toFixed(1)}%</span>
+                                  <span className={cpPct < 80 ? "text-rose-600 font-mono font-bold" : "text-[#00AA13] font-mono font-bold"}>{cpPct.toFixed(1)}%</span>
                                 </div>
                                 <div className="w-full h-2 bg-[#E2E8F0]/40 rounded-full overflow-hidden">
                                   <div
                                     style={{ width: `${Math.min(cpPct, 100)}%` }}
-                                    className="h-full bg-emerald-500 transition-all duration-550"
+                                    className={`h-full ${cpPct < 80 ? "bg-rose-500" : "bg-emerald-500"} transition-all duration-550`}
                                   />
                                 </div>
                               </div>
@@ -5952,12 +5964,12 @@ function createCustomerProfilingForm() {
                               <div>
                                 <div className="flex justify-between text-[9px] font-black uppercase text-[#64748B] mb-0.5">
                                   <span>Tingkat Effective Call (EC/CP)</span>
-                                  <span className="text-[#00AA13] font-mono font-bold">{ecPct.toFixed(1)}%</span>
+                                  <span className={ecPct < 40 ? "text-rose-600 font-mono font-bold" : "text-[#00AA13] font-mono font-bold"}>{ecPct.toFixed(1)}%</span>
                                 </div>
                                 <div className="w-full h-2 bg-[#E2E8F0]/40 rounded-full overflow-hidden">
                                   <div
                                     style={{ width: `${Math.min(ecPct, 100)}%` }}
-                                    className="h-full bg-[#00AA13] transition-all duration-550"
+                                    className={`h-full ${ecPct < 40 ? "bg-rose-500" : "bg-[#00AA13]"} transition-all duration-550`}
                                   />
                                 </div>
                               </div>
@@ -5965,12 +5977,12 @@ function createCustomerProfilingForm() {
                               <div>
                                 <div className="flex justify-between text-[9px] font-black uppercase text-[#64748B] mb-0.5">
                                   <span>Pencapaian SKU Fokus ({skuSum}/{targetSku} Sku)</span>
-                                  <span className="text-amber-700 font-mono font-bold">{skuPct.toFixed(1)}%</span>
+                                  <span className={skuPct < 70 ? "text-rose-600 font-mono font-bold" : "text-amber-700 font-mono font-bold"}>{skuPct.toFixed(1)}%</span>
                                 </div>
                                 <div className="w-full h-2 bg-[#E2E8F0]/40 rounded-full overflow-hidden">
                                   <div
                                     style={{ width: `${Math.min(skuPct, 100)}%` }}
-                                    className="h-full bg-amber-500 transition-all duration-550"
+                                    className={`h-full ${skuPct < 70 ? "bg-rose-500" : "bg-amber-500"} transition-all duration-550`}
                                   />
                                 </div>
                               </div>
