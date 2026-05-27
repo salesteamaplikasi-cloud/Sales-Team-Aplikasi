@@ -1400,7 +1400,12 @@ export default function App() {
             cp: Number(item["CP (Kunjungan)"] || item.cp || 0),
             ec: Number(item["EC (Order)"] || item.ec || 0),
             skuTotal: Number(item["SKU Total"] || item.skuTotal || 0),
-            operationalCost: Number(item["Biaya Operasional (Rp)"] || item.operationalCost || 0),
+            operationalCost: (() => {
+              const raw = item["Biaya Operasional (Rp)"] || item.operationalCost || "0";
+              if (typeof raw === 'number') return raw;
+              const cleaned = String(raw).replace(/Rp|\./g, '').trim();
+              return Number(cleaned) || 0;
+            })(),
             billsReceived: Number(item["Tagihan Bayar Tunai"] || item["Tagihan Didapat (Rp)"] || item.billsReceived || 0),
             billsTransfer: Number(item["Tagihan Bayar Transfer"] || item.billsTransfer || 0),
             billsGiro: Number(item["Tagihan Giro"] || item.billsGiro || 0),
@@ -5994,7 +5999,7 @@ function createCustomerProfilingForm() {
                               </div>
                               <div className="text-right border-l border-[#E2E8F0] pl-3 shrink-0">
                                 <span className="text-[8px] font-extrabold text-[#64748B] flex items-center justify-end gap-1 uppercase tracking-wide">
-                                  <DollarSign className="w-3 h-3 text-amber-600" />
+                                  <span className="text-amber-600 font-black text-[10px]">Rp</span>
                                   Biaya Operasional
                                 </span>
                                 <span className="text-[10.5px] font-mono font-black text-amber-700 block mt-0.5 leading-none">
@@ -6892,7 +6897,7 @@ function createCustomerProfilingForm() {
                           </div>
                           <div className="text-right border-l border-[#E2E8F0] pl-3 shrink-0">
                             <span className="text-[8px] font-extrabold text-[#64748B] flex items-center justify-end gap-1 uppercase tracking-wide">
-                              <DollarSign className="w-3 h-3 text-amber-600" />
+                              <span className="text-amber-600 font-black text-[10px]">Rp</span>
                               Biaya Operasional
                             </span>
                             <span className="text-[10.5px] font-mono font-black text-amber-700 block mt-0.5 leading-none">
