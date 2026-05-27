@@ -1189,17 +1189,54 @@ export default function App() {
     setReports(updated);
     saveToLocalStorage("KPI_DB_REPORTS", updated);
 
+    // Dynamic NOO calculation & entry for Aris & Imam
+    const slNameLower = matchedSales.name.toLowerCase().trim();
+    const isArisOrImam = slNameLower === "aris" || slNameLower === "imam";
+    let savedNooRecord: NooRecord | null = null;
+
+    if (isArisOrImam && (newNooWarung > 0 || newNooStore > 0 || newNooKiosk > 0 || newNooWholesaler > 0)) {
+      savedNooRecord = {
+        id: "noo-" + Date.now(),
+        salesmanId: selectedSalesmanId,
+        salesmanName: matchedSales.name,
+        date: reportDate,
+        warung: newNooWarung,
+        store: newNooStore,
+        kiosk: newNooKiosk,
+        wholesaler: newNooWholesaler
+      };
+      
+      const updatedNoo = [savedNooRecord, ...nooRecords];
+      setNooRecords(updatedNoo);
+      saveToLocalStorage("KPI_DB_NOO_LOGS", updatedNoo);
+    }
+
     // Connected to Sheets directly
     if (sheetsScriptUrl) {
       showToast("Sedang menyimpan laporan ke Google Sheets...", "info");
       const ok = await syncSingleReportToSheets(newReport, true);
+      
+      if (savedNooRecord) {
+        // Re-construct matching array to sync to Sheets in real-time
+        const updatedNoo = [savedNooRecord, ...nooRecords];
+        await handleSyncNooToSheets(updatedNoo, true);
+      }
+
       if (ok) {
-        showToast(`Laporan ${matchedSales.name} berhasil disimpan ke Database & Google Sheets!`, "success");
+        if (savedNooRecord) {
+          showToast(`Laporan & Log NOO ${matchedSales.name} berhasil disimpan ke Database & Google Sheets!`, "success");
+        } else {
+          showToast(`Laporan ${matchedSales.name} berhasil disimpan ke Database & Google Sheets!`, "success");
+        }
       } else {
         showToast(`Laporan tersimpan di Lokal, namun gagal terkirim ke Google Sheets. Silakan cek koneksi/URL!`, "error");
       }
     } else {
-      showToast(`Laporan harian KPI untuk ${matchedSales.name} berhasil tersimpan ke database lokal!`, "success");
+      if (savedNooRecord) {
+        showToast(`Laporan harian KPI & Log NOO untuntuk ${matchedSales.name} berhasil tersimpan ke database lokal!`, "success");
+      } else {
+        showToast(`Laporan harian KPI untuk ${matchedSales.name} berhasil tersimpan ke database lokal!`, "success");
+      }
     }
 
     // Reset Form
@@ -1215,6 +1252,12 @@ export default function App() {
     setBillsTransfer(0);
     setBillsGiro(0);
     setNotes("");
+    
+    // Reset NOO fields
+    setNewNooWarung(0);
+    setNewNooStore(0);
+    setNewNooKiosk(0);
+    setNewNooWholesaler(0);
 
     setIsSubmittingReport(false);
   };
@@ -2459,7 +2502,7 @@ export default function App() {
           {!isSidebarCollapsed && (
             <div className="flex flex-col">
               <span className="text-base font-serif italic font-extrabold tracking-tight text-[#4A4A3C] uppercase whitespace-nowrap">
-                AUDIT KPI SALES
+                PORTAL KPI
               </span>
               <span className="text-[9px] font-bold text-[#8C8C70] uppercase tracking-wider leading-none">
                 Auditor Desk System
@@ -2682,7 +2725,7 @@ export default function App() {
             {/* Branding */}
             <div>
               <span className="text-lg font-serif italic font-extrabold text-[#4A4A3C] uppercase">
-                AUDIT KPI SALES
+                PORTAL KPI
               </span>
               <p className="text-[8px] font-bold text-[#8C8C70] uppercase tracking-widest leading-none mt-0.5">
                 Auditor Portal
@@ -3242,6 +3285,90 @@ export default function App() {
                     </div>
 
                   </div>
+
+                  {/* CONDITIONAL NOO INPUTS FOR ARIS & IMAM (NOO) */}
+                  {activeSalesman && (activeSalesman.name.toLowerCase().trim() === "aris" || activeSalesman.name.toLowerCase().trim() === "imam") && (
+                    <div className="bg-rose-50/50 rounded-2xl p-5 border border-rose-100 flex flex-col gap-4 animate-in fade-in slide-in-from-top-3 duration-200">
+                      <div className="flex items-center justify-between border-b border-rose-200/60 pb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">📌</span>
+                          <div>
+                            <span className="text-xs font-black text-rose-800 uppercase tracking-widest block">
+                              Log New Outlet Opening (NOO) - {activeSalesman.name}
+                            </span>
+                            <span className="text-[10px] text-rose-700/80 font-bold block">
+                              Pilihan otomatis terdeteksi! Silakan input outlet baru yang berhasil dibuka hari ini
+                            </span>
+                          </div>
+                        </div>
+                        <span className="text-[9px] font-black uppercase bg-rose-200 text-rose-800 px-2 py-0.5 rounded-md">
+                          Auto-Mapping Tab
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {/* WARUNG */}
+                        <div className="bg-white p-3 rounded-xl border border-rose-200/50">
+                          <label className="block text-[10px] font-bold text-rose-900 uppercase tracking-wider mb-1.5 text-center">
+                            Warung NOO
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            onFocus={(e) => e.target.value === "0" && e.target.select()}
+                            value={newNooWarung}
+                            onChange={(e) => setNewNooWarung(parseInt(e.target.value, 10) || 0)}
+                            className="w-full text-center rounded-lg py-2 text-base font-mono font-black text-rose-900 bg-rose-50/20 border border-rose-200 focus:outline-[#E5E5DF] focus:ring-1 focus:ring-rose-400 focus:bg-white"
+                          />
+                        </div>
+
+                        {/* TOKO */}
+                        <div className="bg-white p-3 rounded-xl border border-rose-200/50">
+                          <label className="block text-[10px] font-bold text-rose-900 uppercase tracking-wider mb-1.5 text-center">
+                            Toko NOO
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            onFocus={(e) => e.target.value === "0" && e.target.select()}
+                            value={newNooStore}
+                            onChange={(e) => setNewNooStore(parseInt(e.target.value, 10) || 0)}
+                            className="w-full text-center rounded-lg py-2 text-base font-mono font-black text-rose-900 bg-rose-50/20 border border-rose-200 focus:outline-[#E5E5DF] focus:ring-1 focus:ring-rose-400 focus:bg-white"
+                          />
+                        </div>
+
+                        {/* KIOS */}
+                        <div className="bg-white p-3 rounded-xl border border-rose-200/50">
+                          <label className="block text-[10px] font-bold text-rose-900 uppercase tracking-wider mb-1.5 text-center">
+                            Kios NOO
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            onFocus={(e) => e.target.value === "0" && e.target.select()}
+                            value={newNooKiosk}
+                            onChange={(e) => setNewNooKiosk(parseInt(e.target.value, 10) || 0)}
+                            className="w-full text-center rounded-lg py-2 text-base font-mono font-black text-rose-900 bg-rose-50/20 border border-rose-200 focus:outline-[#E5E5DF] focus:ring-1 focus:ring-rose-400 focus:bg-white"
+                          />
+                        </div>
+
+                        {/* GROSIR */}
+                        <div className="bg-white p-3 rounded-xl border border-rose-200/50">
+                          <label className="block text-[10px] font-bold text-rose-900 uppercase tracking-wider mb-1.5 text-center">
+                            Grosir NOO
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            onFocus={(e) => e.target.value === "0" && e.target.select()}
+                            value={newNooWholesaler}
+                            onChange={(e) => setNewNooWholesaler(parseInt(e.target.value, 10) || 0)}
+                            className="w-full text-center rounded-lg py-2 text-base font-mono font-black text-rose-900 bg-rose-50/20 border border-rose-200 focus:outline-[#E5E5DF] focus:ring-1 focus:ring-rose-400 focus:bg-white"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* ROW 5: FINANCIAL METRICS */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -5260,7 +5387,7 @@ function createCustomerProfilingForm() {
                   }`}
                 >
                   <User className="w-4 h-4" />
-                  Salesman: Aris
+                  NOO Aris
                 </button>
                 <button
                   type="button"
@@ -5272,7 +5399,7 @@ function createCustomerProfilingForm() {
                   }`}
                 >
                   <User className="w-4 h-4" />
-                  Salesman: Imam
+                  NOO Imam
                 </button>
               </div>
 
