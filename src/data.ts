@@ -9,7 +9,7 @@ export const INITIAL_SALESMEN: Salesman[] = [
   { id: "s-1", name: "RENY", area: "Semarang", phone: "081234567890", isActive: true, createdAt: "2026-05-20T00:00:00Z" },
   { id: "s-2", name: "BUDI", area: "Semarang", phone: "082345678901", isActive: true, createdAt: "2026-05-20T00:00:00Z" },
   { id: "s-6", name: "Rino", area: "Cilongok", phone: "083456789012", isActive: true, createdAt: "2026-05-20T00:00:00Z" },
-  { id: "s-7", name: "Aris", area: "Semarang", phone: "084567890123", isActive: true, createdAt: "2026-05-20T00:00:00Z" },
+  { id: "s-7", name: "Aris", area: "Semarang", phone: "084567890123", role: "Farmer", isActive: true, createdAt: "2026-05-20T00:00:00Z" },
   { id: "s-8", name: "Imam", area: "Demak", phone: "08567890124", isActive: true, createdAt: "2026-05-20T00:00:00Z" }
 ];
 
@@ -164,21 +164,37 @@ export const INITIAL_REPORTS: KpiReport[] = [
 
 /**
  * Gets the current day status for auto-detect (e.g. "Sabtu Ganjil" or "Sabtu Genap")
+ * Specially aligned with user request:
+ * - 27 Mei 2026 (Wednesday) as Selasa Ganjil
+ * - 3 Juni 2026 (Wednesday) as Selasa Genap
  */
 export function autoDetectCycle(dateString: string): string {
   const d = new Date(dateString);
-  const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
-  const dayName = days[d.getDay()];
   
-  // Calculate is it Odd (Ganjil) or Even (Genap) week of the year
-  // Simple check: get week of year
-  const firstDayOfYear = new Date(d.getFullYear(), 0, 1);
-  const pastDaysOfYear = (d.getTime() - firstDayOfYear.getTime()) / 86400000;
-  const weekNumber = Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
-  const parity = weekNumber % 2 === 0 ? "Genap" : "Ganjil";
+  // Base reference date set by user request: May 27, 2026 (Selasa Ganjil)
+  const ref = new Date("2026-05-27");
+  
+  // Calculate difference in days, rounded to nearest integer
+  const diffDays = Math.round((d.getTime() - ref.getTime()) / 86400000);
+  
+  // Determine parity week offset relative to reference date (7 days per cycle)
+  const weekOffset = Math.floor(diffDays / 7);
+  const normalizedWeekOffset = ((weekOffset % 2) + 2) % 2; // Always 0 or 1
+  
+  // Offset 0 (even week count from ref) is Ganjil, offset 1 is Genap
+  const parity = normalizedWeekOffset === 0 ? "Ganjil" : "Genap";
+  
+  // Shift the week by -1 day uniformly (Wednesday behaves as Tuesday) as requested
+  let shiftedDayIndex = d.getDay() - 1;
+  if (shiftedDayIndex < 0) {
+    shiftedDayIndex = 6; // Sunday shifts to Saturday
+  }
+  
+  const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+  let dayName = days[shiftedDayIndex];
   
   if (dayName === "Minggu") {
-    return "Senin Ganjil"; // fallback
+    dayName = "Senin";
   }
   
   return `${dayName} ${parity}`;

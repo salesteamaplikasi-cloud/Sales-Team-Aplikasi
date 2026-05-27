@@ -45,7 +45,8 @@ import {
   CalendarDays,
   CalendarRange,
   LogOut,
-  Target
+  Target,
+  Presentation
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -78,8 +79,8 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
         s.appendRow(headers);
         var headerRange = s.getRange(1, 1, 1, headers.length);
         headerRange.setFontWeight("bold");
-        headerRange.setBackground(headerColor || "#5A5A40");
-        headerRange.setFontColor("#FAF9F6");
+        headerRange.setBackground(headerColor || "#1E293B");
+        headerRange.setFontColor("#F8FAFC");
         headerRange.setHorizontalAlignment("center");
         s.setRowHeight(1, 28);
       }
@@ -103,11 +104,11 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
     // AKSI 2: Tambah Laporan KPI Tunggal
     if (data.action === "addReport") {
       var sheet = getOrCreateGlobalSheet(ss, "Laporan KPI Sales", [
-        "ID Laporan", "Tanggal KPI", "Nama Salesman", "Siklus", 
+        "ID Laporan", "Tanggal KPI", "Nama Salesman", "Status Sales", "Yang Menggantikan", "Siklus", 
         "TC (Amplop)", "CP (Kunjungan)", "EC (Order)", "SKU Total", 
         "Tagihan Bayar Tunai", "Tagihan Bayar Transfer", "Tagihan Giro", "Biaya Operasional (Rp)", "Catatan", 
         "Tanggal Dibuat", "Rincian SKU Produk"
-      ], "#5A5A40");
+      ], "#1E293B");
       
       var rep = data.report;
       var productsStr = "";
@@ -118,13 +119,13 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
       }
       
       sheet.appendRow([
-        rep.id, rep.date, rep.salesmanName, rep.cycle,
+        rep.id, rep.date, rep.salesmanName, rep.salesmanStatus || "MASUK", rep.replacedBySalesmanName || "", rep.cycle,
         rep.tc, rep.cp, rep.ec, rep.skuTotal,
         rep.billsReceived, rep.billsTransfer || 0, rep.billsGiro || 0, rep.operationalCost, rep.notes || "",
         rep.createdAt, productsStr
       ]);
       
-      autoResizeColumns(sheet, 15);
+      autoResizeColumns(sheet, 17);
       
       return ContentService.createTextOutput(JSON.stringify({ 
         success: true, 
@@ -135,12 +136,12 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
     // AKSI 3: Sinkronisasi Laporan KPI Masal (Bulk)
     if (data.action === "syncAll") {
       var headers = [
-        "ID Laporan", "Tanggal KPI", "Nama Salesman", "Siklus", 
+        "ID Laporan", "Tanggal KPI", "Nama Salesman", "Status Sales", "Yang Menggantikan", "Siklus", 
         "TC (Amplop)", "CP (Kunjungan)", "EC (Order)", "SKU Total", 
         "Tagihan Bayar Tunai", "Tagihan Bayar Transfer", "Tagihan Giro", "Biaya Operasional (Rp)", "Catatan", 
         "Tanggal Dibuat", "Rincian SKU Produk"
       ];
-      var sheet = getOrCreateGlobalSheet(ss, "Laporan KPI Sales", headers, "#5A5A40");
+      var sheet = getOrCreateGlobalSheet(ss, "Laporan KPI Sales", headers, "#1E293B");
       
       // Update header baris pertama menyelaraskan dengan kolom terbaru
       sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
@@ -160,14 +161,14 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
         }
         
         sheet.appendRow([
-          rep.id, rep.date, rep.salesmanName, rep.cycle,
+          rep.id, rep.date, rep.salesmanName, rep.salesmanStatus || "MASUK", rep.replacedBySalesmanName || "", rep.cycle,
           rep.tc, rep.cp, rep.ec, rep.skuTotal,
           rep.billsReceived, rep.billsTransfer || 0, rep.billsGiro || 0, rep.operationalCost, rep.notes || "",
           rep.createdAt, productsStr
         ]);
       }
       
-      autoResizeColumns(sheet, 15);
+      autoResizeColumns(sheet, 17);
       
       return ContentService.createTextOutput(JSON.stringify({ 
         success: true, 
@@ -179,7 +180,7 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
     if (data.action === "syncSalesmen") {
       var sheet = getOrCreateGlobalSheet(ss, "Daftar Salesman", [
         "ID Salesman", "Nama Salesman", "Area Wilayah", "No. HP / Telepon"
-      ], "#4A4A3C");
+      ], "#0F172A");
       
       var salesmen = data.salesmen;
       if (sheet.getLastRow() > 1) {
@@ -593,7 +594,7 @@ export default function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<"form" | "salesmen" | "products" | "reports" | "sheets" | "loyalty" | "kpisales" | "claims">(() => {
+  const [activeTab, setActiveTab] = useState<"form" | "salesmen" | "products" | "reports" | "sheets" | "loyalty" | "kpisales" | "claims" | "presentation">(() => {
     try {
       const p = new URLSearchParams(window.location.search);
       if (p.get("mode") === "customer-loyalty" || p.get("view") === "loyalty") {
@@ -969,6 +970,8 @@ export default function App() {
   const [billsGiro, setBillsGiro] = useState<number>(0);
   const [reportDate, setReportDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState<string>("");
+  const [salesmanStatus, setSalesmanStatus] = useState<string>("MASUK");
+  const [replacedBySalesmanName, setReplacedBySalesmanName] = useState<string>("");
 
   // Product Selection Details (for helping compute SKUs and simulating a real cart)
   const [selectedProducts, setSelectedProducts] = useState<{ [productId: string]: number }>({});
@@ -1155,6 +1158,11 @@ export default function App() {
       return;
     }
 
+    if (salesmanStatus === "IZIN" && !replacedBySalesmanName) {
+      showToast("Gagal mengirim! Setiap status 'IZIN' wajib menyertakan Nama Salesman Pengganti.", "error");
+      return;
+    }
+
     setIsSubmittingReport(true);
 
     // Build productsDetail
@@ -1182,6 +1190,8 @@ export default function App() {
       billsGiro,
       notes,
       productsDetail,
+      salesmanStatus,
+      replacedBySalesmanName: salesmanStatus === "IZIN" ? replacedBySalesmanName : "",
       createdAt: new Date().toISOString()
     };
 
@@ -1252,6 +1262,8 @@ export default function App() {
     setBillsTransfer(0);
     setBillsGiro(0);
     setNotes("");
+    setSalesmanStatus("MASUK");
+    setReplacedBySalesmanName("");
     
     // Reset NOO fields
     setNewNooWarung(0);
@@ -1375,6 +1387,8 @@ export default function App() {
             date: String(item["Tanggal KPI"] || item.date || ""),
             salesmanName: String(item["Nama Salesman"] || item.salesmanName || "SALES"),
             salesmanId: String(item["ID Salesman"] || item.salesmanId || "s-unknown"),
+            salesmanStatus: String(item["Status Sales"] || item.salesmanStatus || "MASUK"),
+            replacedBySalesmanName: String(item["Yang Menggantikan"] || item.replacedBySalesmanName || ""),
             cycle: String(item["Siklus"] || item.cycle || ""),
             tc: Number(item["TC (Amplop)"] || item.tc || 0),
             cp: Number(item["CP (Kunjungan)"] || item.cp || 0),
@@ -1924,6 +1938,8 @@ export default function App() {
     const waText = `AUDIT KPI SALES FORCE\n` +
       `-----------------------------\n` +
       `Salesman     : ${slName}\n` +
+      `Status Kerja : ${salesmanStatus}\n` +
+      (salesmanStatus === "IZIN" ? `Pengganti    : ${replacedBySalesmanName || "-"}\n` : "") +
       `Tanggal      : ${reportDate}\n` +
       `Siklus Hari  : ${selectedCycle}\n` +
       `-----------------------------\n` +
@@ -2413,15 +2429,15 @@ export default function App() {
 
   if (!isAuthenticated && !customerMode) {
     return (
-      <div className="min-h-screen bg-[#FAF9F6] text-[#4A4A3C] font-sans flex items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-3xl shadow-xl border border-[#E5E5DF] max-w-sm w-full">
+      <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] font-sans flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-3xl shadow-xl border border-[#E2E8F0] max-w-sm w-full">
           <div className="flex justify-center mb-6">
-            <div className="bg-[#E5E5DF]/30 p-4 rounded-2xl border border-[#E5E5DF]/50">
-              <User className="w-10 h-10 text-[#5A5A40]" />
+            <div className="bg-[#E2E8F0]/30 p-4 rounded-2xl border border-[#E2E8F0]/50">
+              <User className="w-10 h-10 text-[#1E293B]" />
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-center uppercase tracking-tight text-[#4A4A3C] mb-2 font-serif italic">Login Portal</h1>
-          <p className="text-center text-[#8C8C70] text-xs font-semibold mb-8">Silakan masuk untuk kelola Audit KPI Sales</p>
+          <h1 className="text-2xl font-bold text-center uppercase tracking-tight text-[#0F172A] mb-2 font-serif italic">Login Portal</h1>
+          <p className="text-center text-[#64748B] text-xs font-semibold mb-8">Silakan masuk untuk kelola Audit KPI Sales</p>
           
           {loginError && (
             <div className="bg-rose-50 text-rose-600 p-3 rounded-xl text-xs font-bold mb-6 text-center border border-rose-100">
@@ -2431,30 +2447,30 @@ export default function App() {
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-2">Email</label>
+              <label className="block text-[10px] font-bold text-[#64748B] uppercase tracking-wider mb-2">Email</label>
               <input 
                 type="email" 
                 value={loginEmail}
                 onChange={(e) => setLoginEmail(e.target.value)}
-                className="w-full bg-[#FAF9F6] border border-[#E5E5DF] px-4 py-3 rounded-xl text-sm font-semibold text-[#4A4A3C] focus:border-[#5A5A40] focus:outline-hidden transition"
+                className="w-full bg-[#F8FAFC] border border-[#E2E8F0] px-4 py-3 rounded-xl text-sm font-semibold text-[#0F172A] focus:border-[#1E293B] focus:outline-hidden transition"
                 placeholder="Masukkan email"
                 required
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-2">Password</label>
+              <label className="block text-[10px] font-bold text-[#64748B] uppercase tracking-wider mb-2">Password</label>
               <input 
                 type="password" 
                 value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)}
-                className="w-full bg-[#FAF9F6] border border-[#E5E5DF] px-4 py-3 rounded-xl text-sm font-semibold text-[#4A4A3C] focus:border-[#5A5A40] focus:outline-hidden transition"
+                className="w-full bg-[#F8FAFC] border border-[#E2E8F0] px-4 py-3 rounded-xl text-sm font-semibold text-[#0F172A] focus:border-[#1E293B] focus:outline-hidden transition"
                 placeholder="Masukkan password"
                 required
               />
             </div>
             <button 
               type="submit"
-              className="w-full bg-[#5A5A40] hover:bg-[#4A4A3C] text-white font-bold uppercase tracking-widest text-xs py-3.5 rounded-xl cursor-pointer transition shadow-md mt-6"
+              className="w-full bg-[#1E293B] hover:bg-[#0F172A] text-white font-bold uppercase tracking-widest text-xs py-3.5 rounded-xl cursor-pointer transition shadow-md mt-6"
             >
               Masuk Sekarang
             </button>
@@ -2465,7 +2481,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FAF9F6] text-[#4A4A3C] font-sans selection:bg-[#5A5A40] selection:text-white flex flex-col md:flex-row">
+    <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] font-sans selection:bg-[#1E293B] selection:text-white flex flex-col md:flex-row">
       
       {/* Toast Notification pop up */}
       <AnimatePresence>
@@ -2476,15 +2492,15 @@ export default function App() {
             exit={{ opacity: 0, y: -10, scale: 0.95 }}
             className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-xl shadow-xl border text-sm font-semibold max-w-md ${
               toast.type === "success"
-                ? "bg-[#FAF9F6] text-[#5A5A40] border-[#8C8C70]/30 animate-pulse"
+                ? "bg-[#F8FAFC] text-[#1E293B] border-[#64748B]/30 animate-pulse"
                 : toast.type === "error"
-                ? "bg-[#FAF9F6] text-rose-800 border-rose-200"
-                : "bg-[#FAF9F6] text-[#8C8C70] border-[#E5E5DF]"
+                ? "bg-[#F8FAFC] text-rose-800 border-rose-200"
+                : "bg-[#F8FAFC] text-[#64748B] border-[#E2E8F0]"
             }`}
           >
-            {toast.type === "success" && <CheckCircle2 className="w-5 h-5 text-[#5A5A40]" />}
+            {toast.type === "success" && <CheckCircle2 className="w-5 h-5 text-[#1E293B]" />}
             {toast.type === "error" && <AlertTriangle className="w-5 h-5 text-rose-600" />}
-            {toast.type === "info" && <Info className="w-5 h-5 text-[#8C8C70]" />}
+            {toast.type === "info" && <Info className="w-5 h-5 text-[#64748B]" />}
             <span>{toast.message}</span>
           </motion.div>
         )}
@@ -2493,24 +2509,24 @@ export default function App() {
       {/* 1. COLLAPSIBLE SIDEBAR: ONLY SHOWS ON DESKTOP/LAPTOP SCREEN MODES */}
       {!customerMode && (
         <aside 
-          className={`hidden md:flex flex-col bg-[#FAF9F6] border-r border-[#E5E5DF] h-screen sticky top-0 shrink-0 transition-all duration-300 z-40 ${
+          className={`hidden md:flex flex-col bg-[#F8FAFC] border-r border-[#E2E8F0] h-screen sticky top-0 shrink-0 transition-all duration-300 z-40 ${
             isSidebarCollapsed ? "w-[76px]" : "w-64"
           } select-none`}
         >
         {/* Sidebar Brand & Collapse Toggle Button */}
-        <div className="p-4 border-b border-[#E5E5DF] flex items-center justify-between gap-2 overflow-hidden">
+        <div className="p-4 border-b border-[#E2E8F0] flex items-center justify-between gap-2 overflow-hidden">
           {!isSidebarCollapsed && (
             <div className="flex flex-col">
-              <span className="text-base font-serif italic font-extrabold tracking-tight text-[#4A4A3C] uppercase whitespace-nowrap">
+              <span className="text-base font-serif italic font-extrabold tracking-tight text-[#0F172A] uppercase whitespace-nowrap">
                 PORTAL KPI
               </span>
-              <span className="text-[9px] font-bold text-[#8C8C70] uppercase tracking-wider leading-none">
+              <span className="text-[9px] font-bold text-[#64748B] uppercase tracking-wider leading-none">
                 Auditor Desk System
               </span>
             </div>
           )}
           {isSidebarCollapsed && (
-            <div className="mx-auto p-1 bg-[#5A5A40] text-white rounded-lg text-xs font-serif font-black italic">
+            <div className="mx-auto p-1 bg-[#1E293B] text-white rounded-lg text-xs font-serif font-black italic">
               AKP
             </div>
           )}
@@ -2521,7 +2537,7 @@ export default function App() {
               setIsSidebarCollapsed(newVal);
               localStorage.setItem("KPI_SIDEBAR_COLLAPSED", newVal ? "true" : "false");
             }}
-            className="p-1.5 hover:bg-[#E5E5DF]/50 text-[#8C8C70] hover:text-[#4A4A3C] rounded-lg transition shrink-0 cursor-pointer"
+            className="p-1.5 hover:bg-[#E2E8F0]/50 text-[#64748B] hover:text-[#0F172A] rounded-lg transition shrink-0 cursor-pointer"
             title={isSidebarCollapsed ? "Expand Sidebar" : "Minimize Sidebar"}
           >
             {isSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
@@ -2530,13 +2546,13 @@ export default function App() {
 
         {/* Auditor Profile Header Section (Only if Expanded) */}
         {!isSidebarCollapsed && (
-          <div className="p-4 bg-[#E5E5DF]/20 border-b border-[#E5E5DF]/40 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-[#5A5A40] text-xs font-serif italic text-white flex items-center justify-center font-bold">
+          <div className="p-4 bg-[#E2E8F0]/20 border-b border-[#E2E8F0]/40 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-[#1E293B] text-xs font-serif italic text-white flex items-center justify-center font-bold">
               AR
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-black text-[#4A4A3C] truncate uppercase">Aris</p>
-              <p className="text-[10px] text-[#8C8C70] font-semibold uppercase tracking-wider">Kepala Sales</p>
+              <p className="text-xs font-black text-[#0F172A] truncate uppercase">Aris</p>
+              <p className="text-[10px] text-[#64748B] font-semibold uppercase tracking-wider">Kepala Sales</p>
             </div>
           </div>
         )}
@@ -2548,8 +2564,8 @@ export default function App() {
             onClick={() => setActiveTab("form")}
             className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all ${
               activeTab === "form"
-                ? "bg-[#5A5A40] text-[#FAF9F6] shadow-sm font-bold"
-                : "text-[#8C8C70] hover:text-[#4A4A3C] hover:bg-[#E5E5DF]/30"
+                ? "bg-[#1E293B] text-[#F8FAFC] shadow-sm font-bold"
+                : "text-[#64748B] hover:text-[#0F172A] hover:bg-[#E2E8F0]/30"
             }`}
             title="Input Laporan KPI"
           >
@@ -2562,8 +2578,8 @@ export default function App() {
             onClick={() => setActiveTab("loyalty")}
             className={`w-full flex items-center justify-between px-3 py-2.5 text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all ${
               activeTab === "loyalty"
-                ? "bg-[#5A5A40] text-[#FAF9F6] shadow-sm font-bold"
-                : "text-[#8C8C70] hover:text-[#4A4A3C] hover:bg-[#E5E5DF]/30"
+                ? "bg-[#1E293B] text-[#F8FAFC] shadow-sm font-bold"
+                : "text-[#64748B] hover:text-[#0F172A] hover:bg-[#E2E8F0]/30"
             }`}
             title="Program Loyalti Toko"
           >
@@ -2583,8 +2599,8 @@ export default function App() {
             onClick={() => setActiveTab("claims")}
             className={`w-full flex items-center justify-between px-3 py-2.5 text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all ${
               activeTab === "claims"
-                ? "bg-[#5A5A40] text-[#FAF9F6] shadow-sm font-bold"
-                : "text-[#8C8C70] hover:text-[#4A4A3C] hover:bg-[#E5E5DF]/30"
+                ? "bg-[#1E293B] text-[#F8FAFC] shadow-sm font-bold"
+                : "text-[#64748B] hover:text-[#0F172A] hover:bg-[#E2E8F0]/30"
             }`}
             title="Klaim Hadiah"
           >
@@ -2604,8 +2620,8 @@ export default function App() {
             onClick={() => setActiveTab("kpisales")}
             className={`w-full flex items-center justify-between px-3 py-2.5 text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all ${
               activeTab === "kpisales"
-                ? "bg-[#5A5A40] text-[#FAF9F6] shadow-sm font-bold"
-                : "text-[#8C8C70] hover:text-[#4A4A3C] hover:bg-[#E5E5DF]/30"
+                ? "bg-[#1E293B] text-[#F8FAFC] shadow-sm font-bold"
+                : "text-[#64748B] hover:text-[#0F172A] hover:bg-[#E2E8F0]/30"
             }`}
             title="KPI Sales Tab"
           >
@@ -2620,13 +2636,34 @@ export default function App() {
             )}
           </button>
 
+          {/* Item Presentasi Meeting (New!) */}
+          <button
+            onClick={() => setActiveTab("presentation")}
+            className={`w-full flex items-center justify-between px-3 py-2.5 text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all ${
+              activeTab === "presentation"
+                ? "bg-[#1E293B] text-[#F8FAFC] shadow-sm font-bold"
+                : "text-[#64748B] hover:text-[#0F172A] hover:bg-[#E2E8F0]/30"
+            }`}
+            title="Presentasi Meeting Tab"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <Presentation className="w-4 h-4 shrink-0 text-[#00AA13]" />
+              {!isSidebarCollapsed && <span className="truncate">Presentasi Meeting</span>}
+            </div>
+            {!isSidebarCollapsed && (
+              <span className="text-[9px] bg-[#00AA13]/20 text-[#00AA13] font-black px-1.5 py-0.5 rounded-md">
+                Meeting
+              </span>
+            )}
+          </button>
+
           {/* Item 2: Database Salesman */}
           <button
             onClick={() => setActiveTab("salesmen")}
             className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all ${
               activeTab === "salesmen"
-                ? "bg-[#5A5A40] text-[#FAF9F6] shadow-sm font-bold"
-                : "text-[#8C8C70] hover:text-[#4A4A3C] hover:bg-[#E5E5DF]/30"
+                ? "bg-[#1E293B] text-[#F8FAFC] shadow-sm font-bold"
+                : "text-[#64748B] hover:text-[#0F172A] hover:bg-[#E2E8F0]/30"
             }`}
             title="Database Salesman"
           >
@@ -2639,8 +2676,8 @@ export default function App() {
             onClick={() => setActiveTab("products")}
             className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all ${
               activeTab === "products"
-                ? "bg-[#5A5A40] text-[#FAF9F6] shadow-sm font-bold"
-                : "text-[#8C8C70] hover:text-[#4A4A3C] hover:bg-[#E5E5DF]/30"
+                ? "bg-[#1E293B] text-[#F8FAFC] shadow-sm font-bold"
+                : "text-[#64748B] hover:text-[#0F172A] hover:bg-[#E2E8F0]/30"
             }`}
             title="Database SKU Produk"
           >
@@ -2653,8 +2690,8 @@ export default function App() {
             onClick={() => setActiveTab("reports")}
             className={`w-full flex items-center justify-between px-3 py-2.5 text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all ${
               activeTab === "reports"
-                ? "bg-[#5A5A40] text-[#FAF9F6] shadow-sm font-bold"
-                : "text-[#8C8C70] hover:text-[#4A4A3C] hover:bg-[#E5E5DF]/30"
+                ? "bg-[#1E293B] text-[#F8FAFC] shadow-sm font-bold"
+                : "text-[#64748B] hover:text-[#0F172A] hover:bg-[#E2E8F0]/30"
             }`}
             title="Riwayat Laporan Audit"
           >
@@ -2663,7 +2700,7 @@ export default function App() {
               {!isSidebarCollapsed && <span className="truncate">Riwayat Audit</span>}
             </div>
             {!isSidebarCollapsed && (
-              <span className="text-[10px] bg-[#4A4A3C]/10 text-[#4A4A3C] px-2 py-0.5 rounded-md font-mono">
+              <span className="text-[10px] bg-[#0F172A]/10 text-[#0F172A] px-2 py-0.5 rounded-md font-mono">
                 {targetDatasetForKpi.length}
               </span>
             )}
@@ -2674,8 +2711,8 @@ export default function App() {
             onClick={() => setActiveTab("sheets")}
             className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all ${
               activeTab === "sheets"
-                ? "bg-[#5A5A40] text-[#FAF9F6] shadow-sm font-bold"
-                : "text-[#8C8C70] hover:text-[#4A4A3C] hover:bg-[#E5E5DF]/30"
+                ? "bg-[#1E293B] text-[#F8FAFC] shadow-sm font-bold"
+                : "text-[#64748B] hover:text-[#0F172A] hover:bg-[#E2E8F0]/30"
             }`}
             title="Google Sheets Sync"
           >
@@ -2684,7 +2721,7 @@ export default function App() {
           </button>
 
           {/* Logout Button */}
-          <div className="border-t border-[#E5E5DF] my-2 pt-2">
+          <div className="border-t border-[#E2E8F0] my-2 pt-2">
             <button
               onClick={() => {
                 setIsAuthenticated(false);
@@ -2701,15 +2738,15 @@ export default function App() {
         </nav>
 
         {/* Sidebar Footer System Badge */}
-        <div className="p-4 border-t border-[#E5E5DF] text-center text-[10px] text-[#8C8C70] shrink-0">
+        <div className="p-4 border-t border-[#E2E8F0] text-center text-[10px] text-[#64748B] shrink-0">
           {!isSidebarCollapsed && (
             <div className="flex flex-col gap-0.5">
-              <p className="font-bold text-[#5A5A40]">DKR SALES SYSTEM</p>
+              <p className="font-bold text-[#1E293B]">DKR SALES SYSTEM</p>
               <p className="font-mono text-[9px]">v1.4.0 • Live</p>
             </div>
           )}
           {isSidebarCollapsed && (
-            <span className="font-mono font-bold text-[#5A5A40] text-[10px]">1.4</span>
+            <span className="font-mono font-bold text-[#1E293B] text-[10px]">1.4</span>
           )}
         </div>
       </aside>
@@ -2720,14 +2757,14 @@ export default function App() {
         
         {/* RESPONSIVE HEADER BANNER: INTERACTS MAINLY ON SMARTPHONES */}
         {!customerMode && (
-          <header className="bg-[#FAF9F6] border-b border-[#E5E5DF] md:hidden sticky top-0 z-30 shadow-xs">
+          <header className="bg-[#F8FAFC] border-b border-[#E2E8F0] md:hidden sticky top-0 z-30 shadow-xs">
           <div className="px-4 py-3 flex items-center justify-between">
             {/* Branding */}
             <div>
-              <span className="text-lg font-serif italic font-extrabold text-[#4A4A3C] uppercase">
+              <span className="text-lg font-serif italic font-extrabold text-[#0F172A] uppercase">
                 PORTAL KPI
               </span>
-              <p className="text-[8px] font-bold text-[#8C8C70] uppercase tracking-widest leading-none mt-0.5">
+              <p className="text-[8px] font-bold text-[#64748B] uppercase tracking-widest leading-none mt-0.5">
                 Auditor Portal
               </p>
             </div>
@@ -2735,7 +2772,7 @@ export default function App() {
             {/* Hamburger Toggle menu button for smartphone */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="p-2 hover:bg-[#E5E5DF]/50 text-[#5A5A40] rounded-xl transition cursor-pointer border border-[#E5E5DF]"
+              className="p-2 hover:bg-[#E2E8F0]/50 text-[#1E293B] rounded-xl transition cursor-pointer border border-[#E2E8F0]"
               aria-label="Toggle Mobile Menu"
             >
               <Menu className="w-5 h-5" />
@@ -2752,7 +2789,7 @@ export default function App() {
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                className="border-t border-[#E5E5DF]/60 bg-[#FAF9F6] px-4 py-3 flex flex-col gap-2 shadow-inner overflow-hidden"
+                className="border-t border-[#E2E8F0]/60 bg-[#F8FAFC] px-4 py-3 flex flex-col gap-2 shadow-inner overflow-hidden"
               >
                 {/* 1. Input KPI Tab Button */}
                 <button
@@ -2761,7 +2798,7 @@ export default function App() {
                     setIsMobileMenuOpen(false);
                   }}
                   className={`w-full py-2.5 px-4 rounded-xl text-left text-xs font-black uppercase tracking-wider flex items-center gap-3 ${
-                    activeTab === "form" ? "bg-[#5A5A40] text-[#FAF9F6]" : "bg-[#E5E5DF]/20 text-[#8C8C70]"
+                    activeTab === "form" ? "bg-[#1E293B] text-[#F8FAFC]" : "bg-[#E2E8F0]/20 text-[#64748B]"
                   }`}
                 >
                   <FileText className="w-4 h-4" />
@@ -2775,7 +2812,7 @@ export default function App() {
                     setIsMobileMenuOpen(false);
                   }}
                   className={`w-full py-2.5 px-4 rounded-xl text-left text-xs font-black uppercase tracking-wider flex items-center justify-between ${
-                    activeTab === "loyalty" ? "bg-[#5A5A40] text-[#FAF9F6] border border-[#5A5A40]" : "bg-gradient-to-r from-amber-500/10 to-[#E5E5DF]/20 text-amber-900"
+                    activeTab === "loyalty" ? "bg-[#1E293B] text-[#F8FAFC] border border-[#1E293B]" : "bg-gradient-to-r from-amber-500/10 to-[#E2E8F0]/20 text-amber-900"
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -2794,7 +2831,7 @@ export default function App() {
                     setIsMobileMenuOpen(false);
                   }}
                   className={`w-full py-2.5 px-4 rounded-xl text-left text-xs font-black uppercase tracking-wider flex items-center justify-between ${
-                    activeTab === "claims" ? "bg-[#5A5A40] text-[#FAF9F6] border border-[#5A5A40]" : "bg-gradient-to-r from-emerald-500/10 to-[#E5E5DF]/20 text-emerald-900"
+                    activeTab === "claims" ? "bg-[#1E293B] text-[#F8FAFC] border border-[#1E293B]" : "bg-gradient-to-r from-emerald-500/10 to-[#E2E8F0]/20 text-emerald-900"
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -2813,7 +2850,7 @@ export default function App() {
                     setIsMobileMenuOpen(false);
                   }}
                   className={`w-full py-2.5 px-4 rounded-xl text-left text-xs font-black uppercase tracking-wider flex items-center justify-between ${
-                    activeTab === "kpisales" ? "bg-[#5A5A40] text-[#FAF9F6]" : "bg-gradient-to-r from-rose-500/10 to-[#E5E5DF]/20 text-rose-900"
+                    activeTab === "kpisales" ? "bg-[#1E293B] text-[#F8FAFC]" : "bg-gradient-to-r from-rose-500/10 to-[#E2E8F0]/20 text-rose-900"
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -2825,6 +2862,25 @@ export default function App() {
                   </span>
                 </button>
 
+                {/* Presentasi Meeting Tab Button (New!) */}
+                <button
+                  onClick={() => {
+                    setActiveTab("presentation");
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className={`w-full py-2.5 px-4 rounded-xl text-left text-xs font-black uppercase tracking-wider flex items-center justify-between ${
+                    activeTab === "presentation" ? "bg-[#1E293B] text-[#F8FAFC]" : "bg-gradient-to-r from-emerald-500/10 to-[#E2E8F0]/20 text-emerald-900"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Presentation className="w-4 h-4 text-[#00AA13]" />
+                    <span>Presentasi Meeting</span>
+                  </div>
+                  <span className="text-[8px] bg-[#00AA13] text-white font-extrabold px-1.5 py-0.5 rounded uppercase">
+                    Meeting
+                  </span>
+                </button>
+
                 {/* 3. Database Salesman */}
                 <button
                   onClick={() => {
@@ -2832,7 +2888,7 @@ export default function App() {
                     setIsMobileMenuOpen(false);
                   }}
                   className={`w-full py-2.5 px-4 rounded-xl text-left text-xs font-black uppercase tracking-wider flex items-center gap-3 ${
-                    activeTab === "salesmen" ? "bg-[#5A5A40] text-[#FAF9F6]" : "bg-[#E5E5DF]/20 text-[#8C8C70]"
+                    activeTab === "salesmen" ? "bg-[#1E293B] text-[#F8FAFC]" : "bg-[#E2E8F0]/20 text-[#64748B]"
                   }`}
                 >
                   <User className="w-4 h-4" />
@@ -2846,7 +2902,7 @@ export default function App() {
                     setIsMobileMenuOpen(false);
                   }}
                   className={`w-full py-2.5 px-4 rounded-xl text-left text-xs font-black uppercase tracking-wider flex items-center gap-3 ${
-                    activeTab === "products" ? "bg-[#5A5A40] text-[#FAF9F6]" : "bg-[#E5E5DF]/20 text-[#8C8C70]"
+                    activeTab === "products" ? "bg-[#1E293B] text-[#F8FAFC]" : "bg-[#E2E8F0]/20 text-[#64748B]"
                   }`}
                 >
                   <ShoppingBag className="w-4 h-4" />
@@ -2860,14 +2916,14 @@ export default function App() {
                     setIsMobileMenuOpen(false);
                   }}
                   className={`w-full py-2.5 px-4 rounded-xl text-left text-xs font-black uppercase tracking-wider flex items-center justify-between ${
-                    activeTab === "reports" ? "bg-[#5A5A40] text-[#FAF9F6]" : "bg-[#E5E5DF]/20 text-[#8C8C70]"
+                    activeTab === "reports" ? "bg-[#1E293B] text-[#F8FAFC]" : "bg-[#E2E8F0]/20 text-[#64748B]"
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     <History className="w-4 h-4" />
                     <span>Riwayat Audit</span>
                   </div>
-                  <span className="text-[10px] bg-[#4A4A3C]/15 text-[#4A4A3C] px-2 py-0.5 rounded font-mono font-bold">
+                  <span className="text-[10px] bg-[#0F172A]/15 text-[#0F172A] px-2 py-0.5 rounded font-mono font-bold">
                     {targetDatasetForKpi.length} Records
                   </span>
                 </button>
@@ -2879,7 +2935,7 @@ export default function App() {
                     setIsMobileMenuOpen(false);
                   }}
                   className={`w-full py-2.5 px-4 rounded-xl text-left text-xs font-black uppercase tracking-wider flex items-center gap-3 ${
-                    activeTab === "sheets" ? "bg-[#5A5A40] text-[#FAF9F6]" : "bg-[#E5E5DF]/20 text-[#8C8C70]"
+                    activeTab === "sheets" ? "bg-[#1E293B] text-[#F8FAFC]" : "bg-[#E2E8F0]/20 text-[#64748B]"
                   }`}
                 >
                   <Layers className="w-4 h-4" />
@@ -2887,7 +2943,7 @@ export default function App() {
                 </button>
 
                 {/* Logout Button */}
-                <div className="border-t border-[#E5E5DF]/50 my-1 pt-1">
+                <div className="border-t border-[#E2E8F0]/50 my-1 pt-1">
                   <button
                     onClick={() => {
                       setIsAuthenticated(false);
@@ -2912,25 +2968,25 @@ export default function App() {
         
         {/* UPPER KPI SUMMARY STRIP */}
         <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-[#FAF9F6] p-4 rounded-2xl border border-[#E5E5DF] shadow-xs">
-            <span className="text-xs font-bold text-[#8C8C70] block uppercase tracking-wider">Total Laporan</span>
-            <span className="text-xl font-extrabold text-[#4A4A3C] block mt-1">{totalAuditSaved} Dokumen</span>
-            <span className="text-[10px] text-[#8C8C70]/80">Tersimpan di LocalStorage</span>
+          <div className="bg-[#F8FAFC] p-4 rounded-2xl border border-[#E2E8F0] shadow-xs">
+            <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Total Laporan</span>
+            <span className="text-xl font-extrabold text-[#0F172A] block mt-1">{totalAuditSaved} Dokumen</span>
+            <span className="text-[10px] text-[#64748B]/80">Tersimpan di LocalStorage</span>
           </div>
-          <div className="bg-[#FAF9F6] p-4 rounded-2xl border border-[#E5E5DF] shadow-xs">
-            <span className="text-xs font-bold text-[#8C8C70] block uppercase tracking-wider">Total Dana Tagihan</span>
-            <span className="text-xl font-extrabold text-[#5A5A40] block mt-1">Rp {grandTotalCollection.toLocaleString("id-ID")}</span>
+          <div className="bg-[#F8FAFC] p-4 rounded-2xl border border-[#E2E8F0] shadow-xs">
+            <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Total Dana Tagihan</span>
+            <span className="text-xl font-extrabold text-[#1E293B] block mt-1">Rp {grandTotalCollection.toLocaleString("id-ID")}</span>
             <span className="text-[10px] text-emerald-700/80 font-semibold">Berhasil ditagih sales</span>
           </div>
-          <div className="bg-[#FAF9F6] p-4 rounded-2xl border border-[#E5E5DF] shadow-xs">
-            <span className="text-xs font-bold text-[#8C8C70] block uppercase tracking-wider">Estimasi Rata SKU</span>
-            <span className="text-xl font-extrabold text-[#8C8C70] block mt-1">{avgSkuPerVisit} SKU</span>
-            <span className="text-[10px] text-[#8C8C70]/80">Kapasitas penawaran efektif</span>
+          <div className="bg-[#F8FAFC] p-4 rounded-2xl border border-[#E2E8F0] shadow-xs">
+            <span className="text-xs font-bold text-[#64748B] block uppercase tracking-wider">Estimasi Rata SKU</span>
+            <span className="text-xl font-extrabold text-[#64748B] block mt-1">{avgSkuPerVisit} SKU</span>
+            <span className="text-[10px] text-[#64748B]/80">Kapasitas penawaran efektif</span>
           </div>
-          <div className="bg-gradient-to-br from-[#5A5A40] to-[#4A4A3C] p-4 rounded-2xl text-[#FAF9F6] shadow-sm">
-            <span className="text-xs font-bold block uppercase tracking-wider text-[#FAF9F6]/80">Database Salesman</span>
+          <div className="bg-gradient-to-br from-[#1E293B] to-[#0F172A] p-4 rounded-2xl text-[#F8FAFC] shadow-sm">
+            <span className="text-xs font-bold block uppercase tracking-wider text-[#F8FAFC]/80">Database Salesman</span>
             <span className="text-xl font-extrabold block mt-1">{salesmen.length} Anggota</span>
-            <span className="text-[10px] text-[#FAF9F6]/70 italic">Pilihan dropdown otomatis</span>
+            <span className="text-[10px] text-[#F8FAFC]/70 italic">Pilihan dropdown otomatis</span>
           </div>
         </section>
 
@@ -2952,55 +3008,55 @@ export default function App() {
               <div className="w-full flex flex-col gap-6">
                 
                 {/* NATURAL TONES HEADER CARD COMPONENT - EXACTLY "BANTU INPUT LAPORAN" */}
-                <div className="bg-gradient-to-r from-[#5A5A40] via-[#8C8C70] to-[#5A5A40] text-[#FAF9F6] rounded-3xl p-6 shadow-sm flex items-center justify-between border border-[#E5E5DF]">
+                <div className="bg-gradient-to-r from-[#1E293B] via-[#64748B] to-[#1E293B] text-[#F8FAFC] rounded-3xl p-6 shadow-sm flex items-center justify-between border border-[#E2E8F0]">
                   <div className="flex items-center gap-4">
                     <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20">
-                      <User className="w-7 h-7 text-[#FAF9F6]" />
+                      <User className="w-7 h-7 text-[#F8FAFC]" />
                     </div>
                     <div>
                       <h2 className="text-xl font-serif italic font-bold tracking-tight uppercase">
                         Bantu Input Laporan
                       </h2>
-                      <p className="text-[10px] text-[#FAF9F6]/85 font-semibold tracking-widest uppercase mt-0.5">
-                        SALESMAN YANG DIINPUT: <span className="text-[#FAF9F6] font-bold underline decoration-dotted decoration-2 underline-offset-4 transition-all">{activeSalesman ? activeSalesman.name : "BELUM DIPILIH"}</span>
+                      <p className="text-[10px] text-[#F8FAFC]/85 font-semibold tracking-widest uppercase mt-0.5">
+                        SALESMAN YANG DIINPUT: <span className="text-[#F8FAFC] font-bold underline decoration-dotted decoration-2 underline-offset-4 transition-all">{activeSalesman ? activeSalesman.name : "BELUM DIPILIH"}</span>
                       </p>
                     </div>
                   </div>
                 </div>
 
                 {/* THE PORTAL FORM */}
-                <form onSubmit={handleSubmitReport} className="bg-[#FAF9F6] rounded-3xl p-6 border border-[#E5E5DF] shadow-xs flex flex-col gap-6">
+                <form onSubmit={handleSubmitReport} className="bg-[#F8FAFC] rounded-3xl p-6 border border-[#E2E8F0] shadow-xs flex flex-col gap-6">
                   
                   {/* ROW 1: SELECT DATE */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-[#8C8C70] uppercase tracking-widest mb-1.5">
+                      <label className="block text-xs font-bold text-[#64748B] uppercase tracking-widest mb-1.5">
                         Tanggal Penjualan
                       </label>
                       <input
                         type="date"
                         value={reportDate}
                         onChange={(e) => setReportDate(e.target.value)}
-                        className="w-full bg-[#FAF9F6] border border-[#E5E5DF] rounded-xl px-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40] focus:bg-white text-[#4A4A3C] font-medium transition"
+                        className="w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#1E293B] focus:bg-white text-[#0F172A] font-medium transition"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-[#8C8C70] uppercase tracking-widest mb-1.5 flex items-center justify-between">
+                      <label className="block text-xs font-bold text-[#64748B] uppercase tracking-widest mb-1.5 flex items-center justify-between">
                         <span>Siklus Hari Kunjungan *</span>
                         <button
                           type="button"
                           onClick={handleAutoDetectCycle}
-                          className="text-[10px] font-bold text-[#5A5A40] bg-[#E5E5DF]/55 hover:bg-[#E5E5DF] px-2.5 py-1 rounded-md flex items-center gap-1 uppercase transition"
+                          className="text-[10px] font-bold text-[#1E293B] bg-[#E2E8F0]/55 hover:bg-[#E2E8F0] px-2.5 py-1 rounded-md flex items-center gap-1 uppercase transition"
                         >
-                          <Sparkles className="w-3 h-3 text-[#5A5A40]" />
+                          <Sparkles className="w-3 h-3 text-[#1E293B]" />
                           Auto-Detect
                         </button>
                       </label>
                       <select
                         value={selectedCycle}
                         onChange={(e) => setSelectedCycle(e.target.value)}
-                        className="w-full bg-[#FAF9F6] border border-[#E5E5DF] rounded-xl px-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40] focus:bg-white text-[#4A4A3C] font-semibold transition"
+                        className="w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#1E293B] focus:bg-white text-[#0F172A] font-semibold transition"
                         required
                       >
                         {STANDARD_CYCLES.map(c => (
@@ -3010,29 +3066,105 @@ export default function App() {
                     </div>
                   </div>
 
+                  {/* ROW 1.5: STATUS SALES (SAKIT / IZIN DENGAN PENGGANTI) */}
+                  <div className="bg-white rounded-2xl p-5 border border-[#E2E8F0] flex flex-col gap-4 shadow-sm">
+                    <div className="flex items-center gap-2 border-b border-[#E2E8F0]/60 pb-2.5">
+                      <span className="text-base text-[#00AA13]">👤</span>
+                      <div>
+                        <span className="text-xs font-black text-[#1E293B] uppercase tracking-widest block">
+                          Status Kehadiran / Kerja Salesman
+                        </span>
+                        <span className="text-[10px] text-[#64748B] font-bold block">
+                          Tentukan kondisi harian salesman ini untuk audit performa rute
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* MASUK */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSalesmanStatus("MASUK");
+                        }}
+                        className={`py-3 px-3 rounded-xl border text-xs font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 cursor-pointer ${
+                          salesmanStatus === "MASUK"
+                            ? "bg-[#00AA13] border-[#00AA13] text-white shadow-md ring-2 ring-[#00AA13]/20 scale-[1.02]"
+                            : "bg-[#F8FAFC] border-[#E2E8F0] text-[#64748B] hover:text-[#00AA13] hover:border-[#00AA13]/50 hover:bg-emerald-50/20"
+                        }`}
+                      >
+                        <span className="text-base">💼</span>
+                        <span>Masuk</span>
+                      </button>
+
+                      {/* IZIN */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSalesmanStatus("IZIN");
+                        }}
+                        className={`py-3 px-3 rounded-xl border text-xs font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 cursor-pointer ${
+                          salesmanStatus === "IZIN"
+                            ? "bg-[#00AA13] border-[#00AA13] text-white shadow-md ring-2 ring-[#00AA13]/20 scale-[1.02]"
+                            : "bg-[#F8FAFC] border-[#E2E8F0] text-[#64748B] hover:text-[#00AA13] hover:border-[#00AA13]/50 hover:bg-emerald-50/20"
+                        }`}
+                      >
+                        <span className="text-base">📝</span>
+                        <span>Izin / Cuti</span>
+                      </button>
+                    </div>
+
+                    {/* Conditional input selector if status is IZIN */}
+                    {salesmanStatus === "IZIN" && (
+                      <div className="bg-amber-50 rounded-xl p-4 border border-amber-200 flex flex-col gap-2.5 transition-all">
+                        <label className="block text-[10px] font-black text-amber-900 uppercase tracking-widest">
+                          👤 Siapa Yang Menggantikan? (Wajib) *
+                        </label>
+                        <select
+                          value={replacedBySalesmanName}
+                          onChange={(e) => setReplacedBySalesmanName(e.target.value)}
+                          className="w-full bg-white border border-amber-300 rounded-lg px-3 py-2 text-xs font-semibold text-amber-950 focus:ring-1 focus:ring-amber-500 focus:outline-[#1E293B] transition"
+                          required={salesmanStatus === "IZIN"}
+                        >
+                          <option value="">-- PILIH REKAN SALES PENGGANTI --</option>
+                          {salesmen
+                            .filter(s => s.isActive && s.id !== selectedSalesmanId)
+                            .map(s => (
+                              <option key={s.id} value={s.name}>
+                                {s.name} ({s.area || "Semua Area"})
+                              </option>
+                            ))}
+                        </select>
+                        <p className="text-[9px] text-amber-800 font-bold italic">
+                          * Setiap izin/cuti wajib dikaitkan dengan rekan pengganti agar distribusi rute kunjungan tetap berjalan kondusif.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
                   {/* ROW 2: SEARCHABLE DROPDOWN CHANNELS FOR SALESMAN (AS DEMANDED) */}
                   <div className="relative" ref={salesmanDropdownRef}>
-                    <label className="block text-xs font-bold text-[#8C8C70] uppercase tracking-widest mb-1.5">
+                    <label className="block text-xs font-bold text-[#64748B] uppercase tracking-widest mb-1.5">
                       PILIH SALESMAN (BANTU INPUT) *
                     </label>
                     <div
                       onClick={() => setIsSalesmanDropdownOpen(true)}
-                      className="w-full bg-[#FAF9F6] border border-[#E5E5DF] rounded-2xl p-4 flex items-center justify-between cursor-pointer hover:border-[#8C8C70] hover:bg-[#FAF9F6]/50 transition duration-150"
+                      className="w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl p-4 flex items-center justify-between cursor-pointer hover:border-[#64748B] hover:bg-[#F8FAFC]/50 transition duration-150"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-[#E5E5DF]/40 flex items-center justify-center">
-                          <User className="w-5 h-5 text-[#5A5A40]" />
+                        <div className="w-10 h-10 rounded-xl bg-[#E2E8F0]/40 flex items-center justify-center">
+                          <User className="w-5 h-5 text-[#1E293B]" />
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-[#4A4A3C]">
+                          <p className="text-sm font-bold text-[#0F172A]">
                             {activeSalesman ? activeSalesman.name : "Klik untuk memilih salesman..."}
                           </p>
-                          <p className="text-xs text-[#8C8C70]">
+                          <p className="text-xs text-[#64748B]">
                             {activeSalesman ? `${activeSalesman.area || "Tanpa Area"} • ${activeSalesman.phone || "No HP -"}` : "Menampakkan dropdown database sederhana"}
                           </p>
                         </div>
                       </div>
-                      <div className="text-[#8C8C70] font-bold text-xs pointer-events-none">▼</div>
+                      <div className="text-[#64748B] font-bold text-xs pointer-events-none">▼</div>
                     </div>
 
                     {/* RENDER FLOATING SALESMAN AUTOCOMPLETE PANEL */}
@@ -3042,26 +3174,26 @@ export default function App() {
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: 5 }}
-                          className="absolute left-0 right-0 mt-2 bg-[#FAF9F6] border border-[#E5E5DF] rounded-2xl shadow-xl z-40 max-h-72 overflow-y-auto"
+                          className="absolute left-0 right-0 mt-2 bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl shadow-xl z-40 max-h-72 overflow-y-auto"
                         >
-                          <div className="p-3 border-b border-[#E5E5DF] flex items-center gap-2 sticky top-0 bg-[#FAF9F6] z-10">
-                            <Search className="w-4 h-4 text-[#8C8C70]" />
+                          <div className="p-3 border-b border-[#E2E8F0] flex items-center gap-2 sticky top-0 bg-[#F8FAFC] z-10">
+                            <Search className="w-4 h-4 text-[#64748B]" />
                             <input
                               type="text"
                               placeholder="Ketik/Cari nama atau area sales..."
                               value={salesmanSearch}
                               onChange={(e) => setSalesmanSearch(e.target.value)}
-                              className="w-full text-xs focus:outline-hidden text-[#4A4A3C] bg-transparent py-1 font-semibold"
+                              className="w-full text-xs focus:outline-hidden text-[#0F172A] bg-transparent py-1 font-semibold"
                               autoFocus
                             />
                             {salesmanSearch && (
-                              <button type="button" onClick={() => setSalesmanSearch("")} className="text-xs text-[#8C8C70] hover:text-[#4A4A3C]">
+                              <button type="button" onClick={() => setSalesmanSearch("")} className="text-xs text-[#64748B] hover:text-[#0F172A]">
                                 <X className="w-4 h-4" />
                               </button>
                             )}
                           </div>
                           
-                          <div className="divide-y divide-[#E5E5DF]">
+                          <div className="divide-y divide-[#E2E8F0]">
                             {filteredSalesmen.map((sl) => (
                               <div
                                 key={sl.id}
@@ -3069,23 +3201,23 @@ export default function App() {
                                   setSelectedSalesmanId(sl.id);
                                   setIsSalesmanDropdownOpen(false);
                                 }}
-                                className={`p-3.5 hover:bg-[#E5E5DF]/40 cursor-pointer flex items-center justify-between transition ${
-                                  selectedSalesmanId === sl.id ? "bg-[#E5E5DF]/60" : ""
+                                className={`p-3.5 hover:bg-[#E2E8F0]/40 cursor-pointer flex items-center justify-between transition ${
+                                  selectedSalesmanId === sl.id ? "bg-[#E2E8F0]/60" : ""
                                 }`}
                               >
                                 <div>
-                                  <p className="text-sm font-bold text-[#4A4A3C]">{sl.name}</p>
-                                  <p className="text-[11px] text-[#8C8C70] font-medium">Area: {sl.area || "-"} • Tlp: {sl.phone || "-"}</p>
+                                  <p className="text-sm font-bold text-[#0F172A]">{sl.name}</p>
+                                  <p className="text-[11px] text-[#64748B] font-medium">Area: {sl.area || "-"} • Tlp: {sl.phone || "-"}</p>
                                 </div>
                                 {selectedSalesmanId === sl.id && (
-                                  <span className="w-2.5 h-2.5 rounded-full bg-[#5A5A40]"></span>
+                                  <span className="w-2.5 h-2.5 rounded-full bg-[#1E293B]"></span>
                                 )}
                               </div>
                             ))}
 
                             {filteredSalesmen.length === 0 && (
                               <div className="p-6 text-center">
-                                <p className="text-xs text-[#8C8C70] font-semibold uppercase">Salesman tidak ditemukan</p>
+                                <p className="text-xs text-[#64748B] font-semibold uppercase">Salesman tidak ditemukan</p>
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -3093,7 +3225,7 @@ export default function App() {
                                     setIsSalesmanDropdownOpen(false);
                                     handleAddSalesman();
                                   }}
-                                  className="mt-2 text-xs text-[#5A5A40] hover:underline font-bold flex items-center justify-center gap-1 mx-auto"
+                                  className="mt-2 text-xs text-[#1E293B] hover:underline font-bold flex items-center justify-center gap-1 mx-auto"
                                 >
                                   <Plus className="w-3.5 h-3.5" /> Tambah Salesman Baru ke DB
                                 </button>
@@ -3106,13 +3238,13 @@ export default function App() {
                   </div>
 
                   {/* ROW 3: FLOATING DECORATIVE PRODUCT REGISTRY (FROM PILIH SALESFORCE / CARI PRODUK DROPDOWN ON THE RIGHT OF PICTURE) */}
-                  <div className="bg-[#FAF9F6] rounded-2xl p-4 border border-[#E5E5DF]/60">
+                  <div className="bg-[#F8FAFC] rounded-2xl p-4 border border-[#E2E8F0]/60">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-3">
                       <div>
-                        <span className="text-xs font-bold text-[#8C8C70] uppercase tracking-widest block">
+                        <span className="text-xs font-bold text-[#64748B] uppercase tracking-widest block">
                           Uraian Detail Penjualan Produk (Bantuan Kalkulator SKU)
                         </span>
-                        <p className="text-[10px] text-[#8C8C70]/85">
+                        <p className="text-[10px] text-[#64748B]/85">
                           Pilih produk yang terjual untuk otomatis menghitung nilai SKU Total Anda
                         </p>
                       </div>
@@ -3122,9 +3254,9 @@ export default function App() {
                         <button
                           type="button"
                           onClick={() => setIsProductPickerOpen(!isProductPickerOpen)}
-                          className="w-full sm:w-auto px-4 py-2 bg-[#FAF9F6] border border-[#E5E5DF] rounded-xl text-xs font-bold text-[#5A5A40] hover:bg-[#E5E5DF]/30 flex items-center justify-center gap-2 shadow-xs cursor-pointer transition"
+                          className="w-full sm:w-auto px-4 py-2 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-xs font-bold text-[#1E293B] hover:bg-[#E2E8F0]/30 flex items-center justify-center gap-2 shadow-xs cursor-pointer transition"
                         >
-                          <Search className="w-3.5 h-3.5 text-[#5A5A40]" />
+                          <Search className="w-3.5 h-3.5 text-[#1E293B]" />
                           Cari & Pilih Produk...
                         </button>
 
@@ -3135,46 +3267,46 @@ export default function App() {
                               initial={{ opacity: 0, scale: 0.95, y: 10 }}
                               animate={{ opacity: 1, scale: 1, y: 0 }}
                               exit={{ opacity: 0, scale: 0.95, y: 5 }}
-                              className="absolute right-0 mt-2 w-80 bg-[#FAF9F6] border border-[#E5E5DF] rounded-2xl shadow-xl z-50 overflow-hidden"
+                              className="absolute right-0 mt-2 w-80 bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl shadow-xl z-50 overflow-hidden"
                             >
                               {/* Autocomplete Input Search */}
-                              <div className="p-3 border-b border-[#E5E5DF] bg-[#FAF9F6] flex items-center gap-1.5">
-                                <Search className="w-4 h-4 text-[#8C8C70]" />
+                              <div className="p-3 border-b border-[#E2E8F0] bg-[#F8FAFC] flex items-center gap-1.5">
+                                <Search className="w-4 h-4 text-[#64748B]" />
                                 <input
                                   type="text"
                                   placeholder="Cari Produk..."
                                   value={productSearch}
                                   onChange={(e) => setProductSearch(e.target.value)}
-                                  className="w-full bg-transparent text-xs focus:outline-hidden text-[#4A4A3C] font-semibold placeholder-[#8C8C70]/70"
+                                  className="w-full bg-transparent text-xs focus:outline-hidden text-[#0F172A] font-semibold placeholder-[#64748B]/70"
                                   autoFocus
                                 />
                                 {productSearch && (
                                   <button type="button" onClick={() => setProductSearch("")}>
-                                    <X className="w-3.5 h-3.5 text-[#8C8C70] hover:text-[#4A4A3C]" />
+                                    <X className="w-3.5 h-3.5 text-[#64748B] hover:text-[#0F172A]" />
                                   </button>
                                 )}
                               </div>
 
                               {/* Suggestion list */}
-                              <div className="max-h-60 overflow-y-auto divide-y divide-[#E5E5DF]/45">
+                              <div className="max-h-60 overflow-y-auto divide-y divide-[#E2E8F0]/45">
                                 {filteredProducts.map((p) => (
                                   <button
                                     key={p.id}
                                     type="button"
                                     onClick={() => handleSelectProduct(p)}
-                                    className="w-full text-left px-4 py-3 hover:bg-[#E5E5DF]/40 hover:text-[#4A4A3C] transition flex items-center justify-between text-xs"
+                                    className="w-full text-left px-4 py-3 hover:bg-[#E2E8F0]/40 hover:text-[#0F172A] transition flex items-center justify-between text-xs"
                                   >
                                     <div>
-                                      <p className="font-bold text-[#4A4A3C] uppercase tracking-tight">{p.name}</p>
+                                      <p className="font-bold text-[#0F172A] uppercase tracking-tight">{p.name}</p>
                                       {p.category && (
-                                        <p className="text-[10px] text-[#8C8C70]">{p.category} • {p.skuCode || "-"}</p>
+                                        <p className="text-[10px] text-[#64748B]">{p.category} • {p.skuCode || "-"}</p>
                                       )}
                                     </div>
                                   </button>
                                 ))}
 
                                 {filteredProducts.length === 0 && (
-                                  <div className="p-4 text-center text-[#8C8C70] text-xs">
+                                  <div className="p-4 text-center text-[#64748B] text-xs">
                                     Tidak ada produk yang cocok
                                   </div>
                                 )}
@@ -3192,9 +3324,9 @@ export default function App() {
                           const p = products.find(prod => prod.id === pId);
                           if (!p) return null;
                           return (
-                            <div key={pId} className="flex items-center justify-between bg-[#FAF9F6] px-3.5 py-2.5 rounded-xl border border-[#E5E5DF]">
+                            <div key={pId} className="flex items-center justify-between bg-[#F8FAFC] px-3.5 py-2.5 rounded-xl border border-[#E2E8F0]">
                               <div>
-                                <h4 className="text-xs font-bold text-[#4A4A3C] uppercase">{p.name}</h4>
+                                <h4 className="text-xs font-bold text-[#0F172A] uppercase">{p.name}</h4>
                               </div>
                               
                               <div className="flex items-center gap-2">
@@ -3211,7 +3343,7 @@ export default function App() {
                         })}
                       </div>
                     ) : (
-                      <div className="p-4 bg-[#FAF9F6] rounded-xl border border-[#E5E5DF] text-center text-[#8C8C70]/70 text-xs italic">
+                      <div className="p-4 bg-[#F8FAFC] rounded-xl border border-[#E2E8F0] text-center text-[#64748B]/70 text-xs italic">
                         Belum ada produk rincian yang dipilih. Nilai SKU Total bisa diisi manual atau otomatis di bawah.
                       </div>
                     )}
@@ -3221,8 +3353,8 @@ export default function App() {
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     
                     {/* TC */}
-                    <div className="bg-[#FAF9F6] p-4 rounded-2xl border border-[#E5E5DF]">
-                      <label className="block text-xs font-bold text-[#4A4A3C] uppercase tracking-wider mb-2">
+                    <div className="bg-[#F8FAFC] p-4 rounded-2xl border border-[#E2E8F0]">
+                      <label className="block text-xs font-bold text-[#0F172A] uppercase tracking-wider mb-2">
                         TC (AMPLOP) *
                       </label>
                       <input
@@ -3231,14 +3363,14 @@ export default function App() {
                         onFocus={(e) => e.target.value === "0" && e.target.select()}
                         value={tc}
                         onChange={(e) => setTc(parseInt(e.target.value, 10) || 0)}
-                        className="w-full bg-[#FAF9F6] text-center rounded-xl py-3 text-lg font-mono font-black text-[#5A5A40] border border-[#E5E5DF] focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40]"
+                        className="w-full bg-[#F8FAFC] text-center rounded-xl py-3 text-lg font-mono font-black text-[#1E293B] border border-[#E2E8F0] focus:outline-hidden focus:ring-2 focus:ring-[#1E293B]"
                         required
                       />
                     </div>
 
                     {/* CP */}
-                    <div className="bg-[#FAF9F6] p-4 rounded-2xl border border-[#E5E5DF]">
-                      <label className="block text-xs font-bold text-[#4A4A3C] uppercase tracking-wider mb-2">
+                    <div className="bg-[#F8FAFC] p-4 rounded-2xl border border-[#E2E8F0]">
+                      <label className="block text-xs font-bold text-[#0F172A] uppercase tracking-wider mb-2">
                         CP (KUNJUNGAN) *
                       </label>
                       <input
@@ -3247,14 +3379,14 @@ export default function App() {
                         onFocus={(e) => e.target.value === "0" && e.target.select()}
                         value={cp}
                         onChange={(e) => setCp(parseInt(e.target.value, 10) || 0)}
-                        className="w-full bg-[#FAF9F6] text-center rounded-xl py-3 text-lg font-mono font-black text-[#5A5A40] border border-[#E5E5DF] focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40]"
+                        className="w-full bg-[#F8FAFC] text-center rounded-xl py-3 text-lg font-mono font-black text-[#1E293B] border border-[#E2E8F0] focus:outline-hidden focus:ring-2 focus:ring-[#1E293B]"
                         required
                       />
                     </div>
 
                     {/* EC (ORDER) */}
-                    <div className="bg-[#E5E5DF]/40 p-4 rounded-2xl border border-[#8C8C70]/50">
-                      <label className="block text-xs font-bold text-[#4A4A3C] uppercase tracking-wider mb-2">
+                    <div className="bg-[#E2E8F0]/40 p-4 rounded-2xl border border-[#64748B]/50">
+                      <label className="block text-xs font-bold text-[#0F172A] uppercase tracking-wider mb-2">
                         EC (ORDER) *
                       </label>
                       <input
@@ -3263,14 +3395,14 @@ export default function App() {
                         onFocus={(e) => e.target.value === "0" && e.target.select()}
                         value={ec}
                         onChange={(e) => setEc(parseInt(e.target.value, 10) || 0)}
-                        className="w-full bg-[#FAF9F6] text-center rounded-xl py-3 text-lg font-mono font-black text-[#5A5A40] border border-[#E5E5DF] focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40]"
+                        className="w-full bg-[#F8FAFC] text-center rounded-xl py-3 text-lg font-mono font-black text-[#1E293B] border border-[#E2E8F0] focus:outline-hidden focus:ring-2 focus:ring-[#1E293B]"
                         required
                       />
                     </div>
 
                     {/* SKU TOTAL */}
-                    <div className="bg-[#E5E5DF]/40 p-4 rounded-2xl border border-[#8C8C70]/50">
-                      <label className="block text-xs font-bold text-[#4A4A3C] uppercase tracking-wider mb-2">
+                    <div className="bg-[#E2E8F0]/40 p-4 rounded-2xl border border-[#64748B]/50">
+                      <label className="block text-xs font-bold text-[#0F172A] uppercase tracking-wider mb-2">
                         SKU TOTAL *
                       </label>
                       <input
@@ -3279,7 +3411,7 @@ export default function App() {
                         onFocus={(e) => e.target.value === "0" && e.target.select()}
                         value={skuTotal}
                         onChange={(e) => setSkuTotal(parseInt(e.target.value, 10) || 0)}
-                        className="w-full bg-[#FAF9F6] text-center rounded-xl py-3 text-lg font-mono font-black text-[#5A5A40] border border-[#E5E5DF] focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40]"
+                        className="w-full bg-[#F8FAFC] text-center rounded-xl py-3 text-lg font-mono font-black text-[#1E293B] border border-[#E2E8F0] focus:outline-hidden focus:ring-2 focus:ring-[#1E293B]"
                         required
                       />
                     </div>
@@ -3318,7 +3450,7 @@ export default function App() {
                             onFocus={(e) => e.target.value === "0" && e.target.select()}
                             value={newNooWarung}
                             onChange={(e) => setNewNooWarung(parseInt(e.target.value, 10) || 0)}
-                            className="w-full text-center rounded-lg py-2 text-base font-mono font-black text-rose-900 bg-rose-50/20 border border-rose-200 focus:outline-[#E5E5DF] focus:ring-1 focus:ring-rose-400 focus:bg-white"
+                            className="w-full text-center rounded-lg py-2 text-base font-mono font-black text-rose-900 bg-rose-50/20 border border-rose-200 focus:outline-[#E2E8F0] focus:ring-1 focus:ring-rose-400 focus:bg-white"
                           />
                         </div>
 
@@ -3333,7 +3465,7 @@ export default function App() {
                             onFocus={(e) => e.target.value === "0" && e.target.select()}
                             value={newNooStore}
                             onChange={(e) => setNewNooStore(parseInt(e.target.value, 10) || 0)}
-                            className="w-full text-center rounded-lg py-2 text-base font-mono font-black text-rose-900 bg-rose-50/20 border border-rose-200 focus:outline-[#E5E5DF] focus:ring-1 focus:ring-rose-400 focus:bg-white"
+                            className="w-full text-center rounded-lg py-2 text-base font-mono font-black text-rose-900 bg-rose-50/20 border border-rose-200 focus:outline-[#E2E8F0] focus:ring-1 focus:ring-rose-400 focus:bg-white"
                           />
                         </div>
 
@@ -3348,7 +3480,7 @@ export default function App() {
                             onFocus={(e) => e.target.value === "0" && e.target.select()}
                             value={newNooKiosk}
                             onChange={(e) => setNewNooKiosk(parseInt(e.target.value, 10) || 0)}
-                            className="w-full text-center rounded-lg py-2 text-base font-mono font-black text-rose-900 bg-rose-50/20 border border-rose-200 focus:outline-[#E5E5DF] focus:ring-1 focus:ring-rose-400 focus:bg-white"
+                            className="w-full text-center rounded-lg py-2 text-base font-mono font-black text-rose-900 bg-rose-50/20 border border-rose-200 focus:outline-[#E2E8F0] focus:ring-1 focus:ring-rose-400 focus:bg-white"
                           />
                         </div>
 
@@ -3363,7 +3495,7 @@ export default function App() {
                             onFocus={(e) => e.target.value === "0" && e.target.select()}
                             value={newNooWholesaler}
                             onChange={(e) => setNewNooWholesaler(parseInt(e.target.value, 10) || 0)}
-                            className="w-full text-center rounded-lg py-2 text-base font-mono font-black text-rose-900 bg-rose-50/20 border border-rose-200 focus:outline-[#E5E5DF] focus:ring-1 focus:ring-rose-400 focus:bg-white"
+                            className="w-full text-center rounded-lg py-2 text-base font-mono font-black text-rose-900 bg-rose-50/20 border border-rose-200 focus:outline-[#E2E8F0] focus:ring-1 focus:ring-rose-400 focus:bg-white"
                           />
                         </div>
                       </div>
@@ -3375,18 +3507,18 @@ export default function App() {
                     
                     {/* BIAYA OPERASIONAL */}
                     <div>
-                      <label className="block text-xs font-bold text-[#8C8C70] uppercase tracking-widest mb-1.5">
+                      <label className="block text-xs font-bold text-[#64748B] uppercase tracking-widest mb-1.5">
                         BIAYA OPERASIONAL *
                       </label>
                       <div className="relative">
-                        <span className="absolute left-4 top-3.5 text-xs text-[#8C8C70] font-bold">Rp</span>
+                        <span className="absolute left-4 top-3.5 text-xs text-[#64748B] font-bold">Rp</span>
                         <input
                           type="number"
                           min="0"
                           onFocus={(e) => e.target.value === "0" && e.target.select()}
                           value={operationalCost}
                           onChange={(e) => setOperationalCost(parseInt(e.target.value, 10) || 0)}
-                          className="w-full bg-[#FAF9F6] border border-[#E5E5DF] rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40] focus:bg-white text-[#4A4A3C] font-semibold"
+                          className="w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#1E293B] focus:bg-white text-[#0F172A] font-semibold"
                           required
                         />
                       </div>
@@ -3396,7 +3528,7 @@ export default function App() {
                             key={val}
                             type="button"
                             onClick={() => setOperationalCost(val)}
-                            className="bg-[#E5E5DF]/50 hover:bg-[#E5E5DF] text-[#4A4A3C] text-[10px] px-2.5 py-1 rounded font-bold transition"
+                            className="bg-[#E2E8F0]/50 hover:bg-[#E2E8F0] text-[#0F172A] text-[10px] px-2.5 py-1 rounded font-bold transition"
                           >
                             Rp {val.toLocaleString("id-ID")}
                           </button>
@@ -3406,58 +3538,58 @@ export default function App() {
 
                     {/* TAGIHAN BAYAR TUNAI */}
                     <div>
-                      <label className="block text-xs font-bold text-[#8C8C70] uppercase tracking-widest mb-1.5">
+                      <label className="block text-xs font-bold text-[#64748B] uppercase tracking-widest mb-1.5">
                         Tagihan Bayar Tunai *
                       </label>
                       <div className="relative">
-                        <span className="absolute left-4 top-3.5 text-xs text-[#8C8C70] font-bold">Rp</span>
+                        <span className="absolute left-4 top-3.5 text-xs text-[#64748B] font-bold">Rp</span>
                         <input
                           type="number"
                           min="0"
                           onFocus={(e) => e.target.value === "0" && e.target.select()}
                           value={billsReceived}
                           onChange={(e) => setBillsReceived(parseInt(e.target.value, 10) || 0)}
-                          className="w-full bg-[#FAF9F6] border border-[#E5E5DF] rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40] focus:bg-white text-[#4A4A3C] font-bold"
+                          className="w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#1E293B] focus:bg-white text-[#0F172A] font-bold"
                           required
                         />
                       </div>
-                      <p className="text-[10px] text-[#8C8C70] mt-1">
-                        Terbilang: <span className="text-[#4A4A3C]/75 font-semibold italic">Rp {billsReceived.toLocaleString("id-ID")} Rupiah</span>
+                      <p className="text-[10px] text-[#64748B] mt-1">
+                        Terbilang: <span className="text-[#0F172A]/75 font-semibold italic">Rp {billsReceived.toLocaleString("id-ID")} Rupiah</span>
                       </p>
                     </div>
 
                     {/* TAGIHAN BAYAR TRANSFER */}
                     <div>
-                      <label className="block text-xs font-bold text-[#8C8C70] uppercase tracking-widest mb-1.5">
+                      <label className="block text-xs font-bold text-[#64748B] uppercase tracking-widest mb-1.5">
                         Tagihan Bayar Transfer
                       </label>
                       <div className="relative">
-                        <span className="absolute left-4 top-3.5 text-xs text-[#8C8C70] font-bold">Rp</span>
+                        <span className="absolute left-4 top-3.5 text-xs text-[#64748B] font-bold">Rp</span>
                         <input
                           type="number"
                           min="0"
                           onFocus={(e) => e.target.value === "0" && e.target.select()}
                           value={billsTransfer}
                           onChange={(e) => setBillsTransfer(parseInt(e.target.value, 10) || 0)}
-                          className="w-full bg-[#FAF9F6] border border-[#E5E5DF] rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40] focus:bg-white text-[#4A4A3C] font-bold"
+                          className="w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#1E293B] focus:bg-white text-[#0F172A] font-bold"
                         />
                       </div>
                     </div>
 
                     {/* TAGIHAN GIRO */}
                     <div>
-                      <label className="block text-xs font-bold text-[#8C8C70] uppercase tracking-widest mb-1.5">
+                      <label className="block text-xs font-bold text-[#64748B] uppercase tracking-widest mb-1.5">
                         Tagihan Giro
                       </label>
                       <div className="relative">
-                        <span className="absolute left-4 top-3.5 text-xs text-[#8C8C70] font-bold">Rp</span>
+                        <span className="absolute left-4 top-3.5 text-xs text-[#64748B] font-bold">Rp</span>
                         <input
                           type="number"
                           min="0"
                           onFocus={(e) => e.target.value === "0" && e.target.select()}
                           value={billsGiro}
                           onChange={(e) => setBillsGiro(parseInt(e.target.value, 10) || 0)}
-                          className="w-full bg-[#FAF9F6] border border-[#E5E5DF] rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40] focus:bg-white text-[#4A4A3C] font-bold"
+                          className="w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#1E293B] focus:bg-white text-[#0F172A] font-bold"
                         />
                       </div>
                     </div>
@@ -3466,7 +3598,7 @@ export default function App() {
 
                   {/* NOTES/ADDITIONAL INFO */}
                   <div>
-                    <label className="block text-xs font-bold text-[#8C8C70] uppercase tracking-widest mb-1.5">
+                    <label className="block text-xs font-bold text-[#64748B] uppercase tracking-widest mb-1.5">
                       Catatan Temuan / Kendala (Opsional)
                     </label>
                     <textarea
@@ -3474,7 +3606,7 @@ export default function App() {
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
                       placeholder="Contoh: Kendala armada bocor, hujan lebat, toko berkah tutup sementara, atau kendala tagihan..."
-                      className="w-full bg-[#FAF9F6] border border-[#E5E5DF] rounded-xl px-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40] focus:bg-white text-[#4A4A3C] transition"
+                      className="w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#1E293B] focus:bg-white text-[#0F172A] transition"
                     />
                   </div>
 
@@ -3484,16 +3616,16 @@ export default function App() {
                       type="submit"
                       id="btn-submit-form"
                       disabled={isSubmittingReport}
-                      className="w-full bg-[#5A5A40] hover:bg-[#4A4A3C] text-[#FAF9F6] font-extrabold text-sm uppercase tracking-wider py-4 px-6 rounded-2xl transition duration-150 flex items-center justify-center gap-2.5 shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full bg-[#1E293B] hover:bg-[#0F172A] text-[#F8FAFC] font-extrabold text-sm uppercase tracking-wider py-4 px-6 rounded-2xl transition duration-150 flex items-center justify-center gap-2.5 shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isSubmittingReport ? (
                         <>
-                          <span className="w-5 h-5 border-2 border-[#FAF9F6]/30 border-t-[#FAF9F6] rounded-full animate-spin" />
+                          <span className="w-5 h-5 border-2 border-[#F8FAFC]/30 border-t-[#F8FAFC] rounded-full animate-spin" />
                           Menyimpan ke Database...
                         </>
                       ) : (
                         <>
-                          <FileText className="w-5 h-5 text-[#FAF9F6]" />
+                          <FileText className="w-5 h-5 text-[#F8FAFC]" />
                           SIMPAN KE DATABASE
                         </>
                       )}
@@ -3518,21 +3650,21 @@ export default function App() {
               className="flex flex-col gap-6"
             >
               {/* TOP DB INSTRUCTION SECTION */}
-              <div className="bg-[#FAF9F6] rounded-3xl p-6 border border-[#E5E5DF] shadow-xs">
+              <div className="bg-[#F8FAFC] rounded-3xl p-6 border border-[#E2E8F0] shadow-xs">
                 <div className="flex flex-col md:flex-row gap-6 items-start md:items-center justify-between">
                   <div className="max-w-2xl">
-                    <h2 className="text-lg font-bold text-[#4A4A3C] uppercase flex items-center gap-2 font-serif italic">
-                      <UserPlus className="w-5 h-5 text-[#5A5A40]" />
+                    <h2 className="text-lg font-bold text-[#0F172A] uppercase flex items-center gap-2 font-serif italic">
+                      <UserPlus className="w-5 h-5 text-[#1E293B]" />
                       Kelola Database Salesman
                     </h2>
-                    <p className="text-xs text-[#8C8C70] mt-1 leading-relaxed">
+                    <p className="text-xs text-[#64748B] mt-1 leading-relaxed">
                       Tambahkan, rubah, atau hapus nama salesman harian. Semua nama yang terdaftar di sini akan muncul langsung di autocomplete dropdown input KPI. <strong>Ini adalah pembuktian database fungsional!</strong>
                     </p>
                   </div>
                   
                   <button
                     onClick={handleAddSalesman}
-                    className="w-full md:w-auto px-5 py-3 bg-[#5A5A40] hover:bg-[#4A4A3C] text-[#FAF9F6] font-[#FAF9F6] font-bold text-xs uppercase tracking-wider rounded-xl transition duration-150 flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                    className="w-full md:w-auto px-5 py-3 bg-[#1E293B] hover:bg-[#0F172A] text-[#F8FAFC] font-[#F8FAFC] font-bold text-xs uppercase tracking-wider rounded-xl transition duration-150 flex items-center justify-center gap-2 cursor-pointer shadow-xs"
                   >
                     <UserPlus className="w-4 h-4" />
                     Tambah Salesman Baru
@@ -3540,40 +3672,40 @@ export default function App() {
                 </div>
 
                 {/* DB QUESTION EXPLANATION COMPONENT */}
-                <div className="mt-6 bg-[#E5E5DF]/20 p-5 rounded-2xl border border-[#E5E5DF]">
-                  <h4 className="text-xs font-black text-[#5A5A40] uppercase tracking-widest mb-1.5 flex items-center gap-2">
-                    <Info className="w-4 h-4 text-[#5A5A40]" />
+                <div className="mt-6 bg-[#E2E8F0]/20 p-5 rounded-2xl border border-[#E2E8F0]">
+                  <h4 className="text-xs font-black text-[#1E293B] uppercase tracking-widest mb-1.5 flex items-center gap-2">
+                    <Info className="w-4 h-4 text-[#1E293B]" />
                     "Apa Saja Yang Dibutuhkan Agar Pilihan Nama Sales Bisa Dropdown?" (Pertanyaan Anda)
                   </h4>
-                  <p className="text-xs text-[#4A4A3C] leading-relaxed mb-3">
+                  <p className="text-xs text-[#0F172A] leading-relaxed mb-3">
                     Untuk mengubah input manual tradisional menjadi <strong>Dropdown Cerdas berbasis Database</strong>, sistem memerlukan beberapa elemen arsitektur dasar berikut:
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                    <div className="bg-[#FAF9F6] p-3.5 rounded-xl border border-[#E5E5DF]">
-                      <span className="font-bold text-[#5A5A40] block mb-1">1. Model Data (Schema)</span>
-                      <span className="text-[#8C8C70]">Sebuah spesifikasi struktur data Salesmen yang jelas (contoh: ID, Nama, Area, Nomor HP, dan Status Keaktifan).</span>
+                    <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E2E8F0]">
+                      <span className="font-bold text-[#1E293B] block mb-1">1. Model Data (Schema)</span>
+                      <span className="text-[#64748B]">Sebuah spesifikasi struktur data Salesmen yang jelas (contoh: ID, Nama, Area, Nomor HP, dan Status Keaktifan).</span>
                     </div>
-                    <div className="bg-[#FAF9F6] p-3.5 rounded-xl border border-[#E5E5DF]">
-                      <span className="font-bold text-[#5A5A40] block mb-1">2. Penyimpanan (Database)</span>
-                      <span className="text-[#8C8C70]">Sistem penyimpanan persisten. Untuk local client kita menggunakan <strong>LocalStorage Cache</strong>. Untuk online-multiuser, kita butuh database web seperti <strong>Cloud Firestore (Firebase)</strong>.</span>
+                    <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E2E8F0]">
+                      <span className="font-bold text-[#1E293B] block mb-1">2. Penyimpanan (Database)</span>
+                      <span className="text-[#64748B]">Sistem penyimpanan persisten. Untuk local client kita menggunakan <strong>LocalStorage Cache</strong>. Untuk online-multiuser, kita butuh database web seperti <strong>Cloud Firestore (Firebase)</strong>.</span>
                     </div>
-                    <div className="bg-[#FAF9F6] p-3.5 rounded-xl border border-[#E5E5DF]">
-                      <span className="font-bold text-[#5A5A40] block mb-1">3. Sinkronisasi UI Form</span>
-                      <span className="text-[#8C8C70]">Sebuah kueri data list di React (state loop) untuk memetakan nama sales terdaftar ke dalam tag HTML <code>&lt;select&gt;</code> atau dropdown autocomplete modal.</span>
+                    <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E2E8F0]">
+                      <span className="font-bold text-[#1E293B] block mb-1">3. Sinkronisasi UI Form</span>
+                      <span className="text-[#64748B]">Sebuah kueri data list di React (state loop) untuk memetakan nama sales terdaftar ke dalam tag HTML <code>&lt;select&gt;</code> atau dropdown autocomplete modal.</span>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* SALESMAN DATA TABLE */}
-              <div className="bg-[#FAF9F6] rounded-3xl border border-[#E5E5DF] shadow-xs overflow-hidden">
-                <div className="p-5 border-b border-[#E5E5DF] flex items-center justify-between bg-[#E5E5DF]/10">
-                  <span className="text-xs font-bold text-[#8C8C70] uppercase tracking-wider">
+              <div className="bg-[#F8FAFC] rounded-3xl border border-[#E2E8F0] shadow-xs overflow-hidden">
+                <div className="p-5 border-b border-[#E2E8F0] flex items-center justify-between bg-[#E2E8F0]/10">
+                  <span className="text-xs font-bold text-[#64748B] uppercase tracking-wider">
                     Daftar Anggota Salesman Aktif ({salesmen.length})
                   </span>
                   <button 
                     onClick={handleFetchSalesmenFromSheets}
-                    className="text-[10px] bg-white border border-[#E5E5DF] px-2 py-1 rounded-md hover:bg-gray-50 uppercase font-bold text-[#4A4A3C]"
+                    className="text-[10px] bg-white border border-[#E2E8F0] px-2 py-1 rounded-md hover:bg-gray-50 uppercase font-bold text-[#0F172A]"
                   >
                     Sync Data
                   </button>
@@ -3581,7 +3713,7 @@ export default function App() {
 
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm whitespace-nowrap">
-                    <thead className="bg-[#E5E5DF]/30 text-[11px] font-bold text-[#8C8C70] uppercase tracking-wider border-b border-[#E5E5DF]">
+                    <thead className="bg-[#E2E8F0]/30 text-[11px] font-bold text-[#64748B] uppercase tracking-wider border-b border-[#E2E8F0]">
                       <tr>
                         <th className="px-6 py-4">Nama Salesman</th>
                         <th className="px-6 py-4">Wilayah / Area</th>
@@ -3589,40 +3721,40 @@ export default function App() {
                         <th className="px-6 py-4 text-center">Tindakan</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#E5E5DF]/40">
+                    <tbody className="divide-y divide-[#E2E8F0]/40">
                       {salesmen.map((s) => (
-                        <tr key={s.id} className="hover:bg-[#E5E5DF]/20 transition">
+                        <tr key={s.id} className="hover:bg-[#E2E8F0]/20 transition">
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
-                              <div className="w-9 h-9 rounded-lg bg-[#E5E5DF] text-[#5A5A40] font-bold flex items-center justify-center text-xs">
+                              <div className="w-9 h-9 rounded-lg bg-[#E2E8F0] text-[#1E293B] font-bold flex items-center justify-center text-xs">
                                 {s.name.charAt(0)}
                               </div>
                               <div>
-                                <span className="font-bold text-[#4A4A3C] uppercase block">{s.name}</span>
-                                <span className="text-[10px] text-[#8C8C70] font-mono">ID: {s.id}</span>
+                                <span className="font-bold text-[#0F172A] uppercase block">{s.name}</span>
+                                <span className="text-[10px] text-[#64748B] font-mono">ID: {s.id}</span>
                               </div>
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <span className="px-2.5 py-1 bg-[#E5E5DF]/50 rounded-md text-[#4A4A3C] text-xs font-semibold">
+                            <span className="px-2.5 py-1 bg-[#E2E8F0]/50 rounded-md text-[#0F172A] text-xs font-semibold">
                               {s.area || "Semua Wilayah"}
                             </span>
                           </td>
-                          <td className="px-6 py-4 font-mono text-xs text-[#8C8C70]">
+                          <td className="px-6 py-4 font-mono text-xs text-[#64748B]">
                             {s.phone || "Tidak ada data"}
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center justify-center gap-3">
                               <button
                                 onClick={() => handleEditSalesman(s)}
-                                className="p-2 text-[#8C8C70] hover:text-[#5A5A40] hover:bg-[#E5E5DF]/40 rounded-lg transition"
+                                className="p-2 text-[#64748B] hover:text-[#1E293B] hover:bg-[#E2E8F0]/40 rounded-lg transition"
                                 title="Edit Salesman"
                               >
                                 <Edit2 className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={() => handleDeleteSalesman(s.id, s.name)}
-                                className="p-2 text-[#8C8C70] hover:text-rose-600 hover:bg-rose-50/50 rounded-lg transition"
+                                className="p-2 text-[#64748B] hover:text-rose-600 hover:bg-rose-50/50 rounded-lg transition"
                                 title="Hapus Salesman"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -3650,21 +3782,21 @@ export default function App() {
               className="flex flex-col gap-6"
             >
               {/* TOP PRODUCTS HEADER */}
-              <div className="bg-[#FAF9F6] rounded-3xl p-6 border border-[#E5E5DF] shadow-xs">
+              <div className="bg-[#F8FAFC] rounded-3xl p-6 border border-[#E2E8F0] shadow-xs">
                 <div className="flex flex-col md:flex-row gap-6 items-start md:items-center justify-between">
                   <div>
-                    <h2 className="text-lg font-bold text-[#4A4A3C] uppercase flex items-center gap-2 font-serif italic">
-                      <ShoppingBag className="w-5 h-5 text-[#5A5A40]" />
+                    <h2 className="text-lg font-bold text-[#0F172A] uppercase flex items-center gap-2 font-serif italic">
+                      <ShoppingBag className="w-5 h-5 text-[#1E293B]" />
                       Kelola Database Produk
                     </h2>
-                    <p className="text-xs text-[#8C8C70] mt-1 leading-relaxed">
+                    <p className="text-xs text-[#64748B] mt-1 leading-relaxed">
                       Visualisasi katalog produk distributor. Produk yang didaftarkan di sini akan muncul langsung di floating product search input form KPI untuk mempermudah perhitungan SKU total.
                     </p>
                   </div>
                   
                   <button
                     onClick={handleAddProduct}
-                    className="w-full md:w-auto px-5 py-3 bg-[#5A5A40] hover:bg-[#4A4A3C] text-[#FAF9F6] font-[#FAF9F6] font-bold text-xs uppercase tracking-wider rounded-xl transition duration-150 flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                    className="w-full md:w-auto px-5 py-3 bg-[#1E293B] hover:bg-[#0F172A] text-[#F8FAFC] font-[#F8FAFC] font-bold text-xs uppercase tracking-wider rounded-xl transition duration-150 flex items-center justify-center gap-2 cursor-pointer shadow-xs"
                   >
                     <Plus className="w-4 h-4" />
                     Tambah Produk Baru
@@ -3674,14 +3806,14 @@ export default function App() {
 
               {/* SPREADSHEET SKU SYNC BAR */}
               {sheetsScriptUrl ? (
-                <div className="bg-[#FAF9F6] border border-[#E5E5DF] rounded-3xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
+                <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-3xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold shrink-0">
                       <span className="text-lg">📦</span>
                     </div>
                     <div>
                       <h4 className="text-xs font-black text-emerald-800 uppercase tracking-wider">Master Data Produk Fokus Terhubung</h4>
-                      <p className="text-[10px] text-[#8C8C70] font-bold mt-1">
+                      <p className="text-[10px] text-[#64748B] font-bold mt-1">
                         Auto-sync aktif: Setiap penambahan, pengubahan, atau penghapusan SKU Produk langsung terupdate di Google Sheets (Tab 'Daftar Produk SKU')!
                       </p>
                     </div>
@@ -3691,7 +3823,7 @@ export default function App() {
                       type="button"
                       onClick={() => handleFetchProductsFromSheets()}
                       disabled={isFetchingProducts}
-                      className="flex-1 sm:flex-none bg-white hover:bg-gray-50 border border-[#E5E5DF] text-[#5A5A40] text-xs font-black px-4 py-2.5 rounded-2xl flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
+                      className="flex-1 sm:flex-none bg-white hover:bg-gray-50 border border-[#E2E8F0] text-[#1E293B] text-xs font-black px-4 py-2.5 rounded-2xl flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 ${isFetchingProducts ? "animate-spin" : ""}`} />
                       Tarik SKU Sheets
@@ -3718,14 +3850,14 @@ export default function App() {
               )}
 
               {/* PRODUCT CARDS LIST */}
-              <div className="bg-[#FAF9F6] rounded-3xl border border-[#E5E5DF] shadow-xs overflow-hidden">
-                <div className="p-5 border-b border-[#E5E5DF] flex items-center justify-between bg-[#E5E5DF]/10">
-                  <span className="text-xs font-bold text-[#8C8C70] uppercase tracking-wider">
+              <div className="bg-[#F8FAFC] rounded-3xl border border-[#E2E8F0] shadow-xs overflow-hidden">
+                <div className="p-5 border-b border-[#E2E8F0] flex items-center justify-between bg-[#E2E8F0]/10">
+                  <span className="text-xs font-bold text-[#64748B] uppercase tracking-wider">
                     Daftar Inventaris Produk ({products.length})
                   </span>
                   <button 
                     onClick={handleFetchProductsFromSheets}
-                    className="text-[10px] bg-white border border-[#E5E5DF] px-2 py-1 rounded-md hover:bg-gray-50 uppercase font-bold text-[#4A4A3C]"
+                    className="text-[10px] bg-white border border-[#E2E8F0] px-2 py-1 rounded-md hover:bg-gray-50 uppercase font-bold text-[#0F172A]"
                   >
                     Sync Data
                   </button>
@@ -3733,42 +3865,42 @@ export default function App() {
 
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm whitespace-nowrap">
-                    <thead className="bg-[#E5E5DF]/30 text-[11px] font-bold text-[#8C8C70] uppercase tracking-wider border-b border-[#E5E5DF]">
+                    <thead className="bg-[#E2E8F0]/30 text-[11px] font-bold text-[#64748B] uppercase tracking-wider border-b border-[#E2E8F0]">
                       <tr>
                         <th className="px-6 py-4">Kode SKU / Nama Produk</th>
                         <th className="px-6 py-4">Kategori Produk</th>
                         <th className="px-6 py-4 text-center">Tindakan</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#E5E5DF]/40">
+                    <tbody className="divide-y divide-[#E2E8F0]/40">
                       {products.map((p) => (
-                        <tr key={p.id} className="hover:bg-[#E5E5DF]/20 transition">
+                        <tr key={p.id} className="hover:bg-[#E2E8F0]/20 transition">
                           <td className="px-6 py-4">
                             <div>
-                              <span className="font-bold text-[#4A4A3C] uppercase block">{p.name}</span>
-                              <span className="bg-[#E5E5DF] text-[#4A4A3C] px-1.5 py-0.5 rounded text-[10px] font-bold inline-block mt-1 uppercase">
+                              <span className="font-bold text-[#0F172A] uppercase block">{p.name}</span>
+                              <span className="bg-[#E2E8F0] text-[#0F172A] px-1.5 py-0.5 rounded text-[10px] font-bold inline-block mt-1 uppercase">
                                 SKU: {p.skuCode || "Tanpa Kode"}
                               </span>
                             </div>
                           </td>
-                          <td className="px-6 py-4 text-xs font-semibold text-[#8C8C70]">
+                          <td className="px-6 py-4 text-xs font-semibold text-[#64748B]">
                             {p.category || "Umum"}
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center justify-center gap-3">
                               <button
                                 onClick={() => handleEditProduct(p)}
-                                className="p-2 text-[#8C8C70] hover:text-[#5A5A40] hover:bg-[#E5E5DF]/35 rounded-lg transition"
+                                className="p-2 text-[#64748B] hover:text-[#1E293B] hover:bg-[#E2E8F0]/35 rounded-lg transition"
                                 title="Edit Produk"
                               >
                                 <Edit2 className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={() => handleDeleteProduct(p.id, p.name)}
-                                className="p-2 text-[#8C8C70] hover:text-rose-600 hover:bg-rose-50/50 rounded-lg transition"
+                                className="p-2 text-[#64748B] hover:text-rose-600 hover:bg-rose-50/50 rounded-lg transition"
                                 title="Hapus Produk"
                               >
-                                <Trash2 className="w-4 h-4 text-[#8C8C70]" />
+                                <Trash2 className="w-4 h-4 text-[#64748B]" />
                               </button>
                             </div>
                           </td>
@@ -3793,12 +3925,12 @@ export default function App() {
               className="flex flex-col gap-6"
             >
               {/* HISTORIC STRIP HEADER */}
-              <div className="bg-[#FAF9F6] rounded-3xl p-6 border border-[#E5E5DF] shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="bg-[#F8FAFC] rounded-3xl p-6 border border-[#E2E8F0] shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-bold text-[#4A4A3C] uppercase font-serif italic">
+                  <h2 className="text-lg font-bold text-[#0F172A] uppercase font-serif italic">
                     Arsip Riwayat Laporan KPI Sales
                   </h2>
-                  <p className="text-xs text-[#8C8C70] mt-1 leading-relaxed">
+                  <p className="text-xs text-[#64748B] mt-1 leading-relaxed">
                     Halaman verifikasi dan audit auditor portal. Berisi riwayat input data harian yang dikirim oleh admin KPI.
                   </p>
                 </div>
@@ -3810,6 +3942,8 @@ export default function App() {
                         "No": index + 1,
                         "Tanggal": r.date,
                         "Nama Salesman": r.salesmanName,
+                        "Status Sales": r.salesmanStatus || "MASUK",
+                        "Yang Menggantikan": r.replacedBySalesmanName || "",
                         "Siklus": r.cycle,
                         "TC (Total Call)": r.tc,
                         "CP (Effective Call)": r.cp,
@@ -3830,6 +3964,8 @@ export default function App() {
                         { wch: 6 },   // No
                         { wch: 13 },  // Tanggal
                         { wch: 20 },  // Nama Salesman
+                        { wch: 16 },  // Status Sales
+                        { wch: 22 },  // Yang Menggantikan
                         { wch: 15 },  // Siklus
                         { wch: 16 },  // TC
                         { wch: 16 },  // CP
@@ -3850,7 +3986,7 @@ export default function App() {
                       XLSX.writeFile(wb, `LAPORAN_AUDIT_KPI_REKAP_${new Date().toISOString().split("T")[0]}.xlsx`);
                       showToast("Laporan berhasil diekspor ke format Excel (.xlsx)!", "success");
                     }}
-                    className="px-4 py-2 bg-[#5A5A40] hover:bg-[#4A4A3C] text-[#FAF9F6] text-xs font-bold uppercase tracking-wider rounded-xl transition flex items-center gap-1.5 self-start cursor-pointer md:self-auto shadow-sm"
+                    className="px-4 py-2 bg-[#1E293B] hover:bg-[#0F172A] text-[#F8FAFC] text-xs font-bold uppercase tracking-wider rounded-xl transition flex items-center gap-1.5 self-start cursor-pointer md:self-auto shadow-sm"
                   >
                     <Download className="w-4 h-4" />
                     Ekspor EXCEL (.XLSX)
@@ -3859,27 +3995,27 @@ export default function App() {
               </div>
 
               {/* Filter Area */}
-              <div className="bg-[#FAF9F6] rounded-2xl p-4 border border-[#E5E5DF] shadow-xs flex flex-col md:flex-row gap-4">
+              <div className="bg-[#F8FAFC] rounded-2xl p-4 border border-[#E2E8F0] shadow-xs flex flex-col md:flex-row gap-4">
                 <div className="flex-1">
-                  <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+                  <label className="block text-[10px] font-bold text-[#64748B] uppercase tracking-wider mb-1">
                     Tanggal Mulai
                   </label>
                   <input
                     type="date"
                     value={auditFilterStartDate}
                     onChange={(e) => setAuditFilterStartDate(e.target.value)}
-                    className="w-full bg-white border border-[#E5E5DF] text-[#4A4A3C] font-mono text-sm px-3 py-2 rounded-xl focus:outline-hidden focus:border-[#8C8C70]"
+                    className="w-full bg-white border border-[#E2E8F0] text-[#0F172A] font-mono text-sm px-3 py-2 rounded-xl focus:outline-hidden focus:border-[#64748B]"
                   />
                 </div>
                 <div className="flex-1">
-                  <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+                  <label className="block text-[10px] font-bold text-[#64748B] uppercase tracking-wider mb-1">
                     Tanggal Akhir
                   </label>
                   <input
                     type="date"
                     value={auditFilterEndDate}
                     onChange={(e) => setAuditFilterEndDate(e.target.value)}
-                    className="w-full bg-white border border-[#E5E5DF] text-[#4A4A3C] font-mono text-sm px-3 py-2 rounded-xl focus:outline-hidden focus:border-[#8C8C70]"
+                    className="w-full bg-white border border-[#E2E8F0] text-[#0F172A] font-mono text-sm px-3 py-2 rounded-xl focus:outline-hidden focus:border-[#64748B]"
                   />
                 </div>
                 <div className="flex items-end">
@@ -3888,7 +4024,7 @@ export default function App() {
                       setAuditFilterStartDate("");
                       setAuditFilterEndDate("");
                     }}
-                    className="px-4 py-2 hover:bg-[#E5E5DF]/50 text-[#8C8C70] text-xs font-bold uppercase tracking-wider rounded-xl transition cursor-pointer h-[38px] border border-transparent hover:border-[#E5E5DF]"
+                    className="px-4 py-2 hover:bg-[#E2E8F0]/50 text-[#64748B] text-xs font-bold uppercase tracking-wider rounded-xl transition cursor-pointer h-[38px] border border-transparent hover:border-[#E2E8F0]"
                   >
                     Reset Filter
                   </button>
@@ -3901,45 +4037,54 @@ export default function App() {
                   {filteredAuditReports.map((rep: any) => (
                     <div
                       key={rep.id}
-                      className="bg-[#FAF9F6] rounded-3xl p-6 border border-[#E5E5DF] shadow-xs hover:border-[#8C8C70] transition-all duration-150 flex flex-col lg:flex-row lg:items-center justify-between gap-6"
+                      className="bg-[#F8FAFC] rounded-3xl p-6 border border-[#E2E8F0] shadow-xs hover:border-[#64748B] transition-all duration-150 flex flex-col lg:flex-row lg:items-center justify-between gap-6"
                     >
                       {/* Left: General Info */}
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2 flex-wrap">
-                          <span className="px-3 py-1 bg-[#E5E5DF] text-[#4A4A3C] text-xs font-bold uppercase rounded-lg">
+                          <span className="px-3 py-1 bg-[#E2E8F0] text-[#0F172A] text-xs font-bold uppercase rounded-lg">
                             {rep.salesmanName}
                           </span>
-                          <span className="text-[#8C8C70] font-bold text-xs flex items-center gap-1">
-                            <Calendar className="w-3.5 h-3.5 text-[#8C8C70]" />
+                          {rep.salesmanStatus && rep.salesmanStatus !== "MASUK" && (
+                            <span className={`px-2.5 py-0.5 text-[9px] font-black uppercase rounded border ${
+                              rep.salesmanStatus === "SAKIT" 
+                                ? "bg-rose-55 text-rose-700 border-rose-200" 
+                                : "bg-amber-55 text-amber-800 border-amber-200"
+                            }`}>
+                              {rep.salesmanStatus === "SAKIT" ? "🤒 SAKIT" : `📝 IZIN (Rekan Pengganti: ${rep.replacedBySalesmanName || "-"})`}
+                            </span>
+                          )}
+                          <span className="text-[#64748B] font-bold text-xs flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5 text-[#64748B]" />
                             {rep.date}
                           </span>
-                          <span className="px-2.5 py-0.5 bg-[#E5E5DF]/50 rounded-md text-[#4A4A3C] text-xs font-semibold">
+                          <span className="px-2.5 py-0.5 bg-[#E2E8F0]/50 rounded-md text-[#0F172A] text-xs font-semibold">
                             {rep.cycle}
                           </span>
                         </div>
 
                         {/* KPI Metrics List Badge */}
                         <div className="grid grid-cols-4 gap-2 max-w-lg mb-3 mt-3">
-                          <div className="bg-[#E5E5DF]/30 p-2 rounded-lg text-center">
-                            <span className="text-[10px] text-[#8C8C70] font-bold block">TC</span>
-                            <span className="text-sm font-mono font-black text-[#4A4A3C]">{rep.tc}</span>
+                          <div className="bg-[#E2E8F0]/30 p-2 rounded-lg text-center">
+                            <span className="text-[10px] text-[#64748B] font-bold block">TC</span>
+                            <span className="text-sm font-mono font-black text-[#0F172A]">{rep.tc}</span>
                           </div>
-                          <div className="bg-[#E5E5DF]/30 p-2 rounded-lg text-center">
-                            <span className="text-[10px] text-[#8C8C70] font-bold block">CP</span>
-                            <span className="text-sm font-mono font-black text-[#4A4A3C]">{rep.cp}</span>
+                          <div className="bg-[#E2E8F0]/30 p-2 rounded-lg text-center">
+                            <span className="text-[10px] text-[#64748B] font-bold block">CP</span>
+                            <span className="text-sm font-mono font-black text-[#0F172A]">{rep.cp}</span>
                           </div>
-                          <div className="bg-[#E5E5DF]/60 p-2 rounded-lg text-center">
-                            <span className="text-[10px] text-[#5A5A40] font-bold block">EC</span>
-                            <span className="text-sm font-mono font-black text-[#5A5A40]">{rep.ec}</span>
+                          <div className="bg-[#E2E8F0]/60 p-2 rounded-lg text-center">
+                            <span className="text-[10px] text-[#1E293B] font-bold block">EC</span>
+                            <span className="text-sm font-mono font-black text-[#1E293B]">{rep.ec}</span>
                           </div>
-                          <div className="bg-[#8C8C70]/20 p-2 rounded-lg text-center">
-                            <span className="text-[10px] text-[#5A5A40] font-bold block">SKU</span>
-                            <span className="text-sm font-mono font-black text-[#5A5A40]">{rep.skuTotal}</span>
+                          <div className="bg-[#64748B]/20 p-2 rounded-lg text-center">
+                            <span className="text-[10px] text-[#1E293B] font-bold block">SKU</span>
+                            <span className="text-sm font-mono font-black text-[#1E293B]">{rep.skuTotal}</span>
                           </div>
                         </div>
 
                         {rep.notes && (
-                          <div className="text-xs text-[#8C8C70] mt-2 bg-[#E5E5DF]/20 p-2 rounded-xl italic border-l-2 border-[#8C8C70]">
+                          <div className="text-xs text-[#64748B] mt-2 bg-[#E2E8F0]/20 p-2 rounded-xl italic border-l-2 border-[#64748B]">
                             " {rep.notes} "
                           </div>
                         )}
@@ -3947,9 +4092,9 @@ export default function App() {
                         {/* Rincian produk yang diinput */}
                         {rep.productsDetail && rep.productsDetail.length > 0 && (
                           <div className="mt-3 flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[10px] font-bold text-[#8C8C70] uppercase">Rincian SKU Fokus:</span>
+                            <span className="text-[10px] font-bold text-[#64748B] uppercase">Rincian SKU Fokus:</span>
                             {rep.productsDetail.map((prod, i) => (
-                              <span key={i} className="bg-[#E5E5DF]/40 py-0.5 px-2 rounded-md text-[10px] text-[#4A4A3C] font-semibold uppercase">
+                              <span key={i} className="bg-[#E2E8F0]/40 py-0.5 px-2 rounded-md text-[10px] text-[#0F172A] font-semibold uppercase">
                                 {prod.productName}
                               </span>
                             ))}
@@ -3960,8 +4105,8 @@ export default function App() {
                       {/* Right: Operational Values */}
                       <div className="flex flex-col sm:flex-row lg:flex-col items-start sm:items-center lg:items-end justify-between lg:justify-center gap-4 lg:text-right">
                         <div>
-                          <span className="text-[10px] font-bold text-[#8C8C70] block uppercase">Bayar Tunai</span>
-                          <span className="text-lg font-mono font-black text-[#5A5A40] block">
+                          <span className="text-[10px] font-bold text-[#64748B] block uppercase">Bayar Tunai</span>
+                          <span className="text-lg font-mono font-black text-[#1E293B] block">
                             Rp {rep.billsReceived.toLocaleString("id-ID")}
                           </span>
                         </div>
@@ -3969,7 +4114,7 @@ export default function App() {
                           <div className="flex gap-4">
                             {(rep.billsTransfer || 0) > 0 && (
                               <div>
-                                <span className="text-[10px] font-bold text-[#8C8C70] block uppercase">Transfer</span>
+                                <span className="text-[10px] font-bold text-[#64748B] block uppercase">Transfer</span>
                                 <span className="text-sm font-mono font-black text-blue-700 block mt-0.5">
                                   Rp {(rep.billsTransfer || 0).toLocaleString("id-ID")}
                                 </span>
@@ -3977,7 +4122,7 @@ export default function App() {
                             )}
                             {(rep.billsGiro || 0) > 0 && (
                               <div>
-                                <span className="text-[10px] font-bold text-[#8C8C70] block uppercase">Giro</span>
+                                <span className="text-[10px] font-bold text-[#64748B] block uppercase">Giro</span>
                                 <span className="text-sm font-mono font-black text-amber-600 block mt-0.5">
                                   Rp {(rep.billsGiro || 0).toLocaleString("id-ID")}
                                 </span>
@@ -3987,8 +4132,8 @@ export default function App() {
                         )}
                         
                         <div>
-                          <span className="text-[10px] font-bold text-[#8C8C70] block uppercase">Operational Cost</span>
-                          <span className="text-sm font-mono font-bold text-[#8C8C70] block">
+                          <span className="text-[10px] font-bold text-[#64748B] block uppercase">Operational Cost</span>
+                          <span className="text-sm font-mono font-bold text-[#64748B] block">
                             Rp {rep.operationalCost.toLocaleString("id-ID")}
                           </span>
                         </div>
@@ -3999,6 +4144,8 @@ export default function App() {
                             onClick={() => {
                               const detailText = `LAPORAN SALES FORCE\n` +
                                 `Salesman: ${rep.salesmanName}\n` +
+                                `Status Kerja: ${rep.salesmanStatus || "MASUK"}\n` +
+                                (rep.salesmanStatus === "IZIN" ? `Pengganti: ${rep.replacedBySalesmanName || "-"}\n` : "") +
                                 `Tanggal: ${rep.date}\n` +
                                 `Siklus: ${rep.cycle}\n` +
                                 `TC: ${rep.tc} | CP: ${rep.cp} | EC: ${rep.ec} | SKU: ${rep.skuTotal}\n` +
@@ -4010,7 +4157,7 @@ export default function App() {
                               navigator.clipboard.writeText(detailText);
                               showToast("Rekap laporan disalin ke clipboard!", "success");
                             }}
-                            className="text-xs text-[#4A4A3C] bg-[#E5E5DF] hover:bg-[#E5E5DF]/80 py-1.5 px-3 rounded-lg font-bold flex items-center gap-1 transition"
+                            className="text-xs text-[#0F172A] bg-[#E2E8F0] hover:bg-[#E2E8F0]/80 py-1.5 px-3 rounded-lg font-bold flex items-center gap-1 transition"
                             title="Format Kirim WA"
                           >
                             <Copy className="w-3.5 h-3.5" /> WA
@@ -4021,13 +4168,13 @@ export default function App() {
                   ))}
                 </div>
               ) : (
-                <div className="bg-[#FAF9F6] rounded-3xl p-12 border border-[#E5E5DF] text-center text-[#8C8C70] max-w-sm mx-auto shadow-xs">
-                  <History className="w-12 h-12 text-[#E5E5DF] mx-auto mb-4" />
-                  <p className="text-sm font-bold text-[#4A4A3C] uppercase">Belum ada Laporan Audit</p>
-                  <p className="text-xs text-[#8C8C70] mt-1">Silakan mulai dengan mengirim Laporan Audit KPI di Tab Utama!</p>
+                <div className="bg-[#F8FAFC] rounded-3xl p-12 border border-[#E2E8F0] text-center text-[#64748B] max-w-sm mx-auto shadow-xs">
+                  <History className="w-12 h-12 text-[#E2E8F0] mx-auto mb-4" />
+                  <p className="text-sm font-bold text-[#0F172A] uppercase">Belum ada Laporan Audit</p>
+                  <p className="text-xs text-[#64748B] mt-1">Silakan mulai dengan mengirim Laporan Audit KPI di Tab Utama!</p>
                   <button
                     onClick={() => setActiveTab("form")}
-                    className="mt-4 px-4 py-2 bg-[#5A5A40] text-[#FAF9F6] rounded-lg text-xs font-bold transition cursor-pointer"
+                    className="mt-4 px-4 py-2 bg-[#1E293B] text-[#F8FAFC] rounded-lg text-xs font-bold transition cursor-pointer"
                   >
                     Buka Form Input
                   </button>
@@ -4048,25 +4195,25 @@ export default function App() {
               <div className="lg:col-span-1 flex flex-col gap-6">
                 
                 {/* 1. Configuration Panel */}
-                <div className="bg-[#FAF9F6] rounded-3xl p-6 border border-[#E5E5DF] shadow-xs">
+                <div className="bg-[#F8FAFC] rounded-3xl p-6 border border-[#E2E8F0] shadow-xs">
                   <div className="flex items-center gap-2.5 mb-4">
-                    <div className="p-2 bg-[#5A5A40]/10 text-[#5A5A40] rounded-xl">
-                      <Layers className="w-5 h-5 text-[#5A5A40]" />
+                    <div className="p-2 bg-[#1E293B]/10 text-[#1E293B] rounded-xl">
+                      <Layers className="w-5 h-5 text-[#1E293B]" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-extrabold text-[#4A4A3C] uppercase tracking-wider">
+                      <h3 className="text-sm font-extrabold text-[#0F172A] uppercase tracking-wider">
                         Koneksi Spreadsheet
                       </h3>
-                      <p className="text-[10px] text-[#8C8C70]">Hubungkan dengan Google Sheets API</p>
+                      <p className="text-[10px] text-[#64748B]">Hubungkan dengan Google Sheets API</p>
                     </div>
                   </div>
 
-                  <hr className="border-[#E5E5DF] mb-4" />
+                  <hr className="border-[#E2E8F0] mb-4" />
 
                     <div className="space-y-4">
                       {/* Web App URL Input */}
                       <div>
-                        <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                        <label className="block text-[10px] font-bold text-[#64748B] uppercase tracking-wider mb-1.5 flex items-center justify-between">
                           <span>URL Deploy Web App Apps Script</span>
                           {sheetsScriptUrl !== "https://script.google.com/macros/s/AKfycbz2a1vnNlVwQl6z77-3b5LYgXZAhprIgH3a_JAl0El5GPPI8xiZZGPdGsapa_mM6S0DQA/exec" && (
                             <button
@@ -4077,7 +4224,7 @@ export default function App() {
                                 localStorage.setItem("KPI_SHEETS_SCRIPT_URL", targetDefault);
                                 showToast("URL Web App default Anda berhasil dipulihkan!", "success");
                               }}
-                              className="text-[9px] font-black text-[#5A5A40] hover:underline cursor-pointer"
+                              className="text-[9px] font-black text-[#1E293B] hover:underline cursor-pointer"
                             >
                               Set Default Web App
                             </button>
@@ -4091,13 +4238,13 @@ export default function App() {
                             setSheetsScriptUrl(e.target.value);
                             localStorage.setItem("KPI_SHEETS_SCRIPT_URL", e.target.value);
                           }}
-                          className="w-full px-3 py-2 bg-[#E5E5DF]/20 border border-[#E5E5DF] rounded-xl text-xs text-[#4A4A3C] focus:outline-none focus:border-[#5A5A40] transition placeholder:text-[#8C8C70]/50 font-mono"
+                          className="w-full px-3 py-2 bg-[#E2E8F0]/20 border border-[#E2E8F0] rounded-xl text-xs text-[#0F172A] focus:outline-none focus:border-[#1E293B] transition placeholder:text-[#64748B]/50 font-mono"
                         />
                       </div>
 
                       {/* Apps Script Library URL Input */}
                       <div>
-                        <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                        <label className="block text-[10px] font-bold text-[#64748B] uppercase tracking-wider mb-1.5 flex items-center justify-between">
                           <span>URL Library Google Apps Script</span>
                           {sheetsLibraryUrl !== "https://script.google.com/macros/library/d/1y8VqApcuL-QYGyNyZFB0kF3MI7T9qwCtptmzUpQbNL34H-Gz0LCJBxkt/10" && (
                             <button
@@ -4108,7 +4255,7 @@ export default function App() {
                                 localStorage.setItem("KPI_SHEETS_LIBRARY_URL", targetDefault);
                                 showToast("URL Library default berhasil dipulihkan!", "success");
                               }}
-                              className="text-[9px] font-black text-[#5A5A40] hover:underline cursor-pointer"
+                              className="text-[9px] font-black text-[#1E293B] hover:underline cursor-pointer"
                             >
                               Set Default Library
                             </button>
@@ -4122,28 +4269,28 @@ export default function App() {
                             setSheetsLibraryUrl(e.target.value);
                             localStorage.setItem("KPI_SHEETS_LIBRARY_URL", e.target.value);
                           }}
-                          className="w-full px-3 py-2 bg-[#E5E5DF]/20 border border-[#E5E5DF] rounded-xl text-xs text-[#4A4A3C] focus:outline-none focus:border-[#5A5A40] transition placeholder:text-[#8C8C70]/50 font-mono"
+                          className="w-full px-3 py-2 bg-[#E2E8F0]/20 border border-[#E2E8F0] rounded-xl text-xs text-[#0F172A] focus:outline-none focus:border-[#1E293B] transition placeholder:text-[#64748B]/50 font-mono"
                         />
                       </div>
                       
                       {/* Info Panel Deployment Milik User */}
-                      <div className="p-2.5 bg-[#5A5A40]/10 rounded-xl border border-[#E5E5DF]/50 space-y-1 mt-1">
+                      <div className="p-2.5 bg-[#1E293B]/10 rounded-xl border border-[#E2E8F0]/50 space-y-1 mt-1">
                         <div className="flex flex-col gap-0.5">
-                          <span className="text-[10px] text-[#8C8C70] font-semibold">Deployment ID Aktif:</span>
-                          <span className="font-mono text-[10px] text-[#4A4A3C] break-all bg-white/60 p-1 rounded-sm border border-[#E5E5DF] select-all">
+                          <span className="text-[10px] text-[#64748B] font-semibold">Deployment ID Aktif:</span>
+                          <span className="font-mono text-[10px] text-[#0F172A] break-all bg-white/60 p-1 rounded-sm border border-[#E2E8F0] select-all">
                             {(() => {
                               const match = sheetsScriptUrl.match(/\/macros\/s\/([^\/]+)/);
                               return match ? match[1] : (sheetsScriptUrl || "Tidak Ada");
                             })()}
                           </span>
                         </div>
-                        <div className="flex items-center justify-between text-[10px] mt-1 pt-1 border-t border-[#E5E5DF]/60">
-                          <span className="text-[#8C8C70] font-semibold">Spreadsheet Library:</span>
+                        <div className="flex items-center justify-between text-[10px] mt-1 pt-1 border-t border-[#E2E8F0]/60">
+                          <span className="text-[#64748B] font-semibold">Spreadsheet Library:</span>
                           <a 
                             href={sheetsLibraryUrl || "https://script.google.com/macros/library/d/1y8VqApcuL-QYGyNyZFB0kF3MI7T9qwCtptmzUpQbNL34H-Gz0LCJBxkt/10"} 
                             target="_blank" 
                             rel="noreferrer"
-                            className="font-mono text-[10px] text-[#5A5A40] underline hover:text-[#4A4A3C] truncate max-w-[150px]"
+                            className="font-mono text-[10px] text-[#1E293B] underline hover:text-[#0F172A] truncate max-w-[150px]"
                             title="Buka Spreadsheet Library"
                           >
                             Buka Library ↗
@@ -4151,10 +4298,10 @@ export default function App() {
                         </div>
                       </div>
 
-                    <div className="flex items-center justify-between p-3 bg-[#E5E5DF]/20 rounded-xl border border-[#E5E5DF]/40">
+                    <div className="flex items-center justify-between p-3 bg-[#E2E8F0]/20 rounded-xl border border-[#E2E8F0]/40">
                       <div>
-                        <span className="text-xs font-bold text-[#4A4A3C] block">Sinkronisasi Otomatis</span>
-                        <span className="text-[10px] text-[#8C8C70]">Kirim data real-time saat disubmit</span>
+                        <span className="text-xs font-bold text-[#0F172A] block">Sinkronisasi Otomatis</span>
+                        <span className="text-[10px] text-[#64748B]">Kirim data real-time saat disubmit</span>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input
@@ -4172,7 +4319,7 @@ export default function App() {
                           }}
                           className="sr-only peer"
                         />
-                        <div className="w-9 h-5 bg-[#E5E5DF] rounded-full peer peer-focus:ring-0 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-[#E5E5DF] after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#5A5A40]"></div>
+                        <div className="w-9 h-5 bg-[#E2E8F0] rounded-full peer peer-focus:ring-0 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-[#E2E8F0] after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#1E293B]"></div>
                       </label>
                     </div>
 
@@ -4180,11 +4327,11 @@ export default function App() {
                     <button
                       onClick={handleTestConnection}
                       disabled={testConnectionStatus === "testing"}
-                      className="w-full py-2.5 bg-[#FAF9F6] text-[#5A5A40] border border-[#5A5A40] hover:bg-[#5A5A40] hover:text-[#FAF9F6] rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                      className="w-full py-2.5 bg-[#F8FAFC] text-[#1E293B] border border-[#1E293B] hover:bg-[#1E293B] hover:text-[#F8FAFC] rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                     >
                       {testConnectionStatus === "testing" ? (
                         <>
-                          <span className="w-3.5 h-3.5 border-2 border-[#5A5A40] border-t-transparent rounded-full animate-spin"></span>
+                          <span className="w-3.5 h-3.5 border-2 border-[#1E293B] border-t-transparent rounded-full animate-spin"></span>
                           Menguji Koneksi...
                         </>
                       ) : (
@@ -4223,32 +4370,32 @@ export default function App() {
                 </div>
 
                 {/* 2. Bulk Sync Card */}
-                <div className="bg-[#FAF9F6] rounded-3xl p-6 border border-[#E5E5DF] shadow-xs">
+                <div className="bg-[#F8FAFC] rounded-3xl p-6 border border-[#E2E8F0] shadow-xs">
                   <div className="flex items-center gap-2.5 mb-4">
-                    <div className="p-2 bg-[#5A5A40]/10 text-[#5A5A40] rounded-xl">
-                      <Database className="w-5 h-5 text-[#5A5A40]" />
+                    <div className="p-2 bg-[#1E293B]/10 text-[#1E293B] rounded-xl">
+                      <Database className="w-5 h-5 text-[#1E293B]" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-extrabold text-[#4A4A3C] uppercase tracking-wider">
+                      <h3 className="text-sm font-extrabold text-[#0F172A] uppercase tracking-wider">
                         Upload Data Masal
                       </h3>
-                      <p className="text-[10px] text-[#8C8C70]">Kirim data riwayat lokal sekaligus</p>
+                      <p className="text-[10px] text-[#64748B]">Kirim data riwayat lokal sekaligus</p>
                     </div>
                   </div>
 
-                  <hr className="border-[#E5E5DF] mb-4" />
+                  <hr className="border-[#E2E8F0] mb-4" />
 
                   <div className="space-y-4">
-                    <p className="text-[10px] text-[#8C8C70] leading-relaxed pb-1">
+                    <p className="text-[10px] text-[#64748B] leading-relaxed pb-1">
                       Klik tombol di bawah ini untuk mengekspor atau menyinkronkan data lokal dari setiap menu halaman ke tab Spreadsheet Anda secara instan:
                     </p>
 
                     {/* 1. Laporan KPI */}
-                    <div className="p-3 bg-white border border-[#E5E5DF] rounded-2xl flex flex-col gap-2.5 shadow-2xs">
+                    <div className="p-3 bg-white border border-[#E2E8F0] rounded-2xl flex flex-col gap-2.5 shadow-2xs">
                       <div className="flex items-center justify-between">
                         <div>
-                          <span className="text-xs font-bold text-[#4A4A3C] block">1. Laporan Harian KPI</span>
-                          <span className="text-[10px] text-[#8C8C70]">Record lokal: <strong>{reports.length} Laporan</strong></span>
+                          <span className="text-xs font-bold text-[#0F172A] block">1. Laporan Harian KPI</span>
+                          <span className="text-[10px] text-[#64748B]">Record lokal: <strong>{reports.length} Laporan</strong></span>
                         </div>
                         <span className="text-[10px] font-mono px-2 py-0.5 rounded-sm bg-amber-500/10 text-amber-900 border border-amber-500/20 font-bold">
                           Tab: Laporan KPI Sales
@@ -4257,7 +4404,7 @@ export default function App() {
                       <button
                         onClick={handleSyncAllToSheets}
                         disabled={isSyncingAll || reports.length === 0}
-                        className="w-full py-2 bg-[#5A5A40] text-[#FAF9F6] hover:bg-[#4A4A3C] disabled:bg-[#8C8C70]/30 disabled:cursor-not-allowed rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-3xs"
+                        className="w-full py-2 bg-[#1E293B] text-[#F8FAFC] hover:bg-[#0F172A] disabled:bg-[#64748B]/30 disabled:cursor-not-allowed rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-3xs"
                       >
                         {isSyncingAll ? (
                           <>
@@ -4274,20 +4421,20 @@ export default function App() {
                     </div>
 
                     {/* 2. Database Salesman */}
-                    <div className="p-3 bg-white border border-[#E5E5DF] rounded-2xl flex flex-col gap-2.5 shadow-2xs">
+                    <div className="p-3 bg-white border border-[#E2E8F0] rounded-2xl flex flex-col gap-2.5 shadow-2xs">
                       <div className="flex items-center justify-between">
                         <div>
-                          <span className="text-xs font-bold text-[#4A4A3C] block">2. Database Salesman</span>
-                          <span className="text-[10px] text-[#8C8C70]">Record lokal: <strong>{salesmen.length} Anggota</strong></span>
+                          <span className="text-xs font-bold text-[#0F172A] block">2. Database Salesman</span>
+                          <span className="text-[10px] text-[#64748B]">Record lokal: <strong>{salesmen.length} Anggota</strong></span>
                         </div>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-sm bg-[#4A4A3C]/10 text-[#4A4A3C] border border-[#4A4A3C]/20 font-bold">
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-sm bg-[#0F172A]/10 text-[#0F172A] border border-[#0F172A]/20 font-bold">
                           Tab: Daftar Salesman
                         </span>
                       </div>
                       <button
                         onClick={handleSyncSalesmenToSheets}
                         disabled={isSyncingSalesmen || salesmen.length === 0}
-                        className="w-full py-2 bg-[#4A4A3C] text-white hover:bg-[#3A3A2F] disabled:bg-[#8C8C70]/30 disabled:cursor-not-allowed rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-3xs"
+                        className="w-full py-2 bg-[#0F172A] text-white hover:bg-[#3A3A2F] disabled:bg-[#64748B]/30 disabled:cursor-not-allowed rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-3xs"
                       >
                         {isSyncingSalesmen ? (
                           <>
@@ -4304,11 +4451,11 @@ export default function App() {
                     </div>
 
                     {/* 3. Database SKU Produk */}
-                    <div className="p-3 bg-white border border-[#E5E5DF] rounded-2xl flex flex-col gap-2.5 shadow-2xs">
+                    <div className="p-3 bg-white border border-[#E2E8F0] rounded-2xl flex flex-col gap-2.5 shadow-2xs">
                       <div className="flex items-center justify-between">
                         <div>
-                          <span className="text-xs font-bold text-[#4A4A3C] block">3. Database SKU Produk</span>
-                          <span className="text-[10px] text-[#8C8C70]">Record lokal: <strong>{products.length} SKU</strong></span>
+                          <span className="text-xs font-bold text-[#0F172A] block">3. Database SKU Produk</span>
+                          <span className="text-[10px] text-[#64748B]">Record lokal: <strong>{products.length} SKU</strong></span>
                         </div>
                         <span className="text-[10px] font-mono px-2 py-0.5 rounded-sm bg-[#3B3D2A]/10 text-[#3B3D2A] border border-[#3B3D2A]/20 font-bold">
                           Tab: Daftar Produk SKU
@@ -4317,7 +4464,7 @@ export default function App() {
                       <button
                         onClick={handleSyncProductsToSheets}
                         disabled={isSyncingProducts || products.length === 0}
-                        className="w-full py-2 bg-[#3B3D2A] text-white hover:bg-[#252719] disabled:bg-[#8C8C70]/30 disabled:cursor-not-allowed rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-3xs"
+                        className="w-full py-2 bg-[#3B3D2A] text-white hover:bg-[#252719] disabled:bg-[#64748B]/30 disabled:cursor-not-allowed rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-3xs"
                       >
                         {isSyncingProducts ? (
                           <>
@@ -4334,11 +4481,11 @@ export default function App() {
                     </div>
 
                     {/* 4. Program Loyalti & Profiling Toko */}
-                    <div className="p-3 bg-white border border-[#E5E5DF] rounded-2xl flex flex-col gap-2.5 shadow-2xs">
+                    <div className="p-3 bg-white border border-[#E2E8F0] rounded-2xl flex flex-col gap-2.5 shadow-2xs">
                       <div className="flex items-center justify-between">
                         <div>
-                          <span className="text-xs font-bold text-[#4A4A3C] block">4. Program Loyalti Toko & Klaim</span>
-                          <span className="text-[10px] text-[#8C8C70]">
+                          <span className="text-xs font-bold text-[#0F172A] block">4. Program Loyalti Toko & Klaim</span>
+                          <span className="text-[10px] text-[#64748B]">
                             Local: <strong>{customers.length} Toko</strong>, <strong>{loyaltyRedeemHistory.length} Klaim</strong>
                           </span>
                         </div>
@@ -4349,7 +4496,7 @@ export default function App() {
                       <button
                         onClick={() => handleSyncLoyaltyToSheets()}
                         disabled={isSyncingLoyalty || customers.length === 0}
-                        className="w-full py-2 bg-[#4A4238] text-white hover:bg-[#342D26] disabled:bg-[#8C8C70]/30 disabled:cursor-not-allowed rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-3xs"
+                        className="w-full py-2 bg-[#4A4238] text-white hover:bg-[#342D26] disabled:bg-[#64748B]/30 disabled:cursor-not-allowed rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-3xs"
                       >
                         {isSyncingLoyalty ? (
                           <>
@@ -4373,24 +4520,24 @@ export default function App() {
               <div className="lg:col-span-2 flex flex-col gap-6">
                 
                 {/* Tutorial Panel */}
-                <div className="bg-[#FAF9F6] rounded-3xl p-6 border border-[#E5E5DF] shadow-xs">
-                  <h3 className="text-sm font-extrabold text-[#4A4A3C] uppercase tracking-wider mb-2 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-[#5A5A40]" />
+                <div className="bg-[#F8FAFC] rounded-3xl p-6 border border-[#E2E8F0] shadow-xs">
+                  <h3 className="text-sm font-extrabold text-[#0F172A] uppercase tracking-wider mb-2 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-[#1E293B]" />
                     Langkah Integrasi spreadsheet (Paling Mudah & Instan)
                   </h3>
-                  <p className="text-xs text-[#8C8C70] mb-5">
+                  <p className="text-xs text-[#64748B] mb-5">
                     Ikuti panduan berikut untuk menghubungkan portal kpi dengan spreadsheet google secara gratis tanpa pusing setup GCP/Firestore yang terkunci:
                   </p>
 
                   <div className="space-y-5">
                     {/* Step 1 */}
                     <div className="flex gap-3">
-                      <div className="w-6 h-6 rounded-full bg-[#5A5A40] text-[#FAF9F6] flex items-center justify-center text-[11px] font-black shrink-0 mt-0.5">
+                      <div className="w-6 h-6 rounded-full bg-[#1E293B] text-[#F8FAFC] flex items-center justify-center text-[11px] font-black shrink-0 mt-0.5">
                         1
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-[#4A4A3C]">Buat Google Spreadsheet Baru</p>
-                        <p className="text-[11px] text-[#8C8C70] mt-0.5">
+                        <p className="text-xs font-bold text-[#0F172A]">Buat Google Spreadsheet Baru</p>
+                        <p className="text-[11px] text-[#64748B] mt-0.5">
                           Buka Google Drive atau Google Sheets, lalu buat lembar spreadsheet baru. Beri judul seperti <strong>"Laporan Audit KPI Sales"</strong>.
                         </p>
                       </div>
@@ -4398,12 +4545,12 @@ export default function App() {
 
                     {/* Step 2 */}
                     <div className="flex gap-3">
-                      <div className="w-6 h-6 rounded-full bg-[#5A5A40] text-[#FAF9F6] flex items-center justify-center text-[11px] font-black shrink-0 mt-0.5">
+                      <div className="w-6 h-6 rounded-full bg-[#1E293B] text-[#F8FAFC] flex items-center justify-center text-[11px] font-black shrink-0 mt-0.5">
                         2
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-[#4A4A3C]">Buka Ekstensi Apps Script</p>
-                        <p className="text-[11px] text-[#8C8C70] mt-0.5">
+                        <p className="text-xs font-bold text-[#0F172A]">Buka Ekstensi Apps Script</p>
+                        <p className="text-[11px] text-[#64748B] mt-0.5">
                           Di menu bar spreadsheet, klik <strong>Ekstensi (Extensions)</strong> &gt; pilih <strong>Apps Script</strong>.
                         </p>
                       </div>
@@ -4411,23 +4558,23 @@ export default function App() {
 
                     {/* Step 3 */}
                     <div className="flex gap-3">
-                      <div className="w-6 h-6 rounded-full bg-[#5A5A40] text-[#FAF9F6] flex items-center justify-center text-[11px] font-black shrink-0 mt-0.5">
+                      <div className="w-6 h-6 rounded-full bg-[#1E293B] text-[#F8FAFC] flex items-center justify-center text-[11px] font-black shrink-0 mt-0.5">
                         3
                       </div>
                       <div className="w-full">
-                        <p className="text-xs font-bold text-[#4A4A3C]">Salin dan Tempel Kode Apps Script</p>
-                        <p className="text-[11px] text-[#8C8C70] mt-0.5 mb-2">
+                        <p className="text-xs font-bold text-[#0F172A]">Salin dan Tempel Kode Apps Script</p>
+                        <p className="text-[11px] text-[#64748B] mt-0.5 mb-2">
                           Hapus kode default di editor lalu paste kode optimal di bawah ini yang telah kami siapkan khusus untuk memformat kolom otomatis secara dinamis:
                         </p>
                         
                         {/* Monospace Code Board with copy trigger */}
-                        <div className="relative bg-[#3A3A2C] rounded-2xl p-4 overflow-hidden border border-[#5A5A40]/30 shadow-inner">
+                        <div className="relative bg-[#3A3A2C] rounded-2xl p-4 overflow-hidden border border-[#1E293B]/30 shadow-inner">
                           <button
                             onClick={() => {
                               navigator.clipboard.writeText(APPS_SCRIPT_CODE_STENCIL);
                               showToast("Kode Apps Script disalin ke clipboard!", "success");
                             }}
-                            className="absolute right-3 top-3 text-[10px] bg-[#FAF9F6]/10 text-[#FAF9F6] hover:bg-[#FAF9F6]/20 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer"
+                            className="absolute right-3 top-3 text-[10px] bg-[#F8FAFC]/10 text-[#F8FAFC] hover:bg-[#F8FAFC]/20 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer"
                           >
                             <Copy className="w-3 h-3" />
                             Salin Kode
@@ -4442,12 +4589,12 @@ export default function App() {
 
                     {/* Step 4 */}
                     <div className="flex gap-3">
-                      <div className="w-6 h-6 rounded-full bg-[#5A5A40] text-[#FAF9F6] flex items-center justify-center text-[11px] font-black shrink-0 mt-0.5">
+                      <div className="w-6 h-6 rounded-full bg-[#1E293B] text-[#F8FAFC] flex items-center justify-center text-[11px] font-black shrink-0 mt-0.5">
                         4
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-[#4A4A3C]">Deploy ke Publik / Terapkan sebagai Web App</p>
-                        <p className="text-[11px] text-[#8C8C70] mt-0.5 leading-relaxed">
+                        <p className="text-xs font-bold text-[#0F172A]">Deploy ke Publik / Terapkan sebagai Web App</p>
+                        <p className="text-[11px] text-[#64748B] mt-0.5 leading-relaxed">
                           Klik tombol <strong>Terapkan (Deploy)</strong> di kanan atas &gt; pilih <strong>Terapkan Baru (New Deployment)</strong>.<br />
                           1. Ubah ikon roda gigi Jenis ke: <strong>Aplikasi Web (Web App)</strong>.<br />
                           2. Setel jalankan sebagai: <strong>Saya (Me)</strong>.<br />
@@ -4461,12 +4608,12 @@ export default function App() {
 
                     {/* Step 5 */}
                     <div className="flex gap-3">
-                      <div className="w-6 h-6 rounded-full bg-[#5A5A40] text-[#FAF9F6] flex items-center justify-center text-[11px] font-black shrink-0 mt-0.5">
+                      <div className="w-6 h-6 rounded-full bg-[#1E293B] text-[#F8FAFC] flex items-center justify-center text-[11px] font-black shrink-0 mt-0.5">
                         5
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-[#4A4A3C]">Salin URL Aplikasi Web & Tempel</p>
-                        <p className="text-[11px] text-[#8C8C70] mt-0.5">
+                        <p className="text-xs font-bold text-[#0F172A]">Salin URL Aplikasi Web & Tempel</p>
+                        <p className="text-[11px] text-[#64748B] mt-0.5">
                           Salin <strong>Web App URL</strong> yang diberikan, tempel di kolom "Koneksi Spreadsheet" di sebelah kiri, lalu mulailah mengirim data!
                         </p>
                       </div>
@@ -4515,32 +4662,32 @@ export default function App() {
                 <>
                   {/* Upper Loyalty Insights Bento Strip */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-gradient-to-br from-[#FAF9F6] to-[#E5E5DF]/20 p-4 rounded-2xl border border-[#E5E5DF] shadow-xs">
-                  <span className="text-[10px] font-bold text-[#8C8C70] block uppercase tracking-wider">Total Toko Diprofiling</span>
-                  <span className="text-xl font-extrabold text-[#4A4A3C] block mt-1">{customers.length} Toko</span>
-                  <span className="text-[10px] text-[#5A5A40] font-semibold">Tersinkron di Portal</span>
+                <div className="bg-gradient-to-br from-[#F8FAFC] to-[#E2E8F0]/20 p-4 rounded-2xl border border-[#E2E8F0] shadow-xs">
+                  <span className="text-[10px] font-bold text-[#64748B] block uppercase tracking-wider">Total Toko Diprofiling</span>
+                  <span className="text-xl font-extrabold text-[#0F172A] block mt-1">{customers.length} Toko</span>
+                  <span className="text-[10px] text-[#1E293B] font-semibold">Tersinkron di Portal</span>
                 </div>
                 
-                <div className="bg-gradient-to-br from-[#FAF9F6] to-amber-500/5 p-4 rounded-2xl border border-[#E5E5DF] shadow-xs">
-                  <span className="text-[10px] font-bold text-[#8C8C70] block uppercase tracking-wider">Total Poin Terkumpul</span>
+                <div className="bg-gradient-to-br from-[#F8FAFC] to-amber-500/5 p-4 rounded-2xl border border-[#E2E8F0] shadow-xs">
+                  <span className="text-[10px] font-bold text-[#64748B] block uppercase tracking-wider">Total Poin Terkumpul</span>
                   <div className="flex items-center gap-1.5 mt-1">
                     <Crown className="w-5 h-5 text-amber-500 shrink-0" />
-                    <span className="text-xl font-extrabold text-[#4A4A3C]">{customers.reduce((sum, c) => sum + (c.points || 0), 0)} Poin</span>
+                    <span className="text-xl font-extrabold text-[#0F172A]">{customers.reduce((sum, c) => sum + (c.points || 0), 0)} Poin</span>
                   </div>
-                  <span className="text-[10px] text-[#8C8C70]">Siap ditukar merchant rewards</span>
+                  <span className="text-[10px] text-[#64748B]">Siap ditukar merchant rewards</span>
                 </div>
 
-                <div className="bg-gradient-to-br from-[#FAF9F6] to-[#5A5A40]/5 p-4 rounded-2xl border border-[#E5E5DF] shadow-xs">
-                  <span className="text-[10px] font-bold text-[#8C8C70] block uppercase tracking-wider">Toko Kelas Platinum / Gold</span>
-                  <span className="text-xl font-extrabold text-[#5A5A40] block mt-1">
+                <div className="bg-gradient-to-br from-[#F8FAFC] to-[#1E293B]/5 p-4 rounded-2xl border border-[#E2E8F0] shadow-xs">
+                  <span className="text-[10px] font-bold text-[#64748B] block uppercase tracking-wider">Toko Kelas Platinum / Gold</span>
+                  <span className="text-xl font-extrabold text-[#1E293B] block mt-1">
                     {customers.filter(c => c.tier === "Platinum" || c.tier === "Gold").length} Toko Utama
                   </span>
-                  <span className="text-[10px] text-[#8C8C70]">Omzet &gt; Rp 8.000.000/bln</span>
+                  <span className="text-[10px] text-[#64748B]">Omzet &gt; Rp 8.000.000/bln</span>
                 </div>
 
-                <div className="bg-gradient-to-br from-[#FAF9F6] to-[#8C8C70]/10 p-4 rounded-2xl border border-[#E5E5DF] shadow-xs">
-                  <span className="text-[10px] font-bold text-[#8C8C70] block uppercase tracking-wider">Total Klaim Hadiah</span>
-                  <span className="text-xl font-extrabold text-[#8C8C70] block mt-1">{loyaltyRedeemHistory.length} Klaim</span>
+                <div className="bg-gradient-to-br from-[#F8FAFC] to-[#64748B]/10 p-4 rounded-2xl border border-[#E2E8F0] shadow-xs">
+                  <span className="text-[10px] font-bold text-[#64748B] block uppercase tracking-wider">Total Klaim Hadiah</span>
+                  <span className="text-xl font-extrabold text-[#64748B] block mt-1">{loyaltyRedeemHistory.length} Klaim</span>
                   <span className="text-[10px] text-emerald-700/80 font-semibold">Sukses didistribusikan</span>
                 </div>
               </div>
@@ -4552,19 +4699,19 @@ export default function App() {
                 <div className="lg:col-span-1 space-y-6">
                   
                   {/* Action 1: Register New Store Profiling */}
-                  <div className="bg-[#FAF9F6] p-5 rounded-3xl border border-[#E5E5DF] shadow-xs">
-                    <h3 className="text-xs font-black text-[#4A4A3C] uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <div className="bg-[#F8FAFC] p-5 rounded-3xl border border-[#E2E8F0] shadow-xs">
+                    <h3 className="text-xs font-black text-[#0F172A] uppercase tracking-wider mb-3 flex items-center gap-2">
                       <Sparkles className="w-4 h-4 text-amber-500" />
                       1. Customer Profiling Form
                     </h3>
                     <div className="max-h-[350px] overflow-y-auto pr-1.5 space-y-4">
                       <div>
-                        <p className="text-[11px] text-[#8C8C70] leading-relaxed mb-3">
+                        <p className="text-[11px] text-[#64748B] leading-relaxed mb-3">
                           Sesuai diagram DKR Sales System, lakukan profiling dasar (Nama Toko, Estimasi Omzet, Status Sewa) untuk mendaftarkan tingkatan tier loyalitas toko baru.
                         </p>
                         <button
                           onClick={() => setIsCustomerModalOpen(true)}
-                          className="w-full bg-[#5A5A40] hover:bg-[#4A4A3C] text-[#FAF9F6] hover:text-white font-bold text-xs uppercase tracking-wider py-3 px-4 rounded-xl transition cursor-pointer flex items-center justify-center gap-2"
+                          className="w-full bg-[#1E293B] hover:bg-[#0F172A] text-[#F8FAFC] hover:text-white font-bold text-xs uppercase tracking-wider py-3 px-4 rounded-xl transition cursor-pointer flex items-center justify-center gap-2"
                         >
                           <Plus className="w-4 h-4" />
                           Input Profil Toko Baru
@@ -4572,17 +4719,17 @@ export default function App() {
                       </div>
 
                       {/* QR Code and Customer Link section */}
-                      <div className="border-t border-dashed border-[#E5E5DF] pt-4 space-y-3">
+                      <div className="border-t border-dashed border-[#E2E8F0] pt-4 space-y-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10.5px] font-extrabold text-[#4A4A3C] uppercase flex items-center gap-1.5">
+                          <span className="text-[10.5px] font-extrabold text-[#0F172A] uppercase flex items-center gap-1.5">
                             📠 Portal Mandiri Pelanggan
                           </span>
-                          <span className="text-[8.5px] bg-[#5A5A40] text-amber-300 font-extrabold px-1.5 py-0.5 rounded uppercase font-mono tracking-wider">
+                          <span className="text-[8.5px] bg-[#1E293B] text-amber-300 font-extrabold px-1.5 py-0.5 rounded uppercase font-mono tracking-wider">
                             QR CODE
                           </span>
                         </div>
                         
-                        <p className="text-[10px] text-[#8C8C70] leading-relaxed">
+                        <p className="text-[10px] text-[#64748B] leading-relaxed">
                           Cetak flyer QR ini di outlet Semarang & Bobotsari. Pelanggan dapat scan mandiri untuk mendaftar profiling & memantau saldo poin toko!
                         </p>
 
@@ -4609,12 +4756,12 @@ export default function App() {
                           };
                           
                           return (
-                            <div className="bg-white p-2.5 rounded-2xl border border-[#E5E5DF] flex flex-col items-center justify-center text-center gap-2">
+                            <div className="bg-white p-2.5 rounded-2xl border border-[#E2E8F0] flex flex-col items-center justify-center text-center gap-2">
                               <img
                                 src={qrApiUrl}
                                 alt="Loyalty Portal Mandiri QR Code"
                                 referrerPolicy="no-referrer"
-                                className="w-28 h-28 border-2 border-[#5A5A40] rounded-xl shadow-xs"
+                                className="w-28 h-28 border-2 border-[#1E293B] rounded-xl shadow-xs"
                               />
                               
                               <div className="w-full space-y-1">
@@ -4635,14 +4782,14 @@ export default function App() {
                                       showToast("Gagal menyalin otomatis. Salin manual dari jendela alamat Anda.", "error");
                                     }
                                   }}
-                                  className="w-full py-1.5 text-[9px] font-bold bg-[#E5E5DF]/50 hover:bg-[#E5E5DF] text-[#4A4A3C] rounded-lg transition"
+                                  className="w-full py-1.5 text-[9px] font-bold bg-[#E2E8F0]/50 hover:bg-[#E2E8F0] text-[#0F172A] rounded-lg transition"
                                 >
                                   📋 Salin Link Google Form
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => window.open(publicUrl, "_blank")}
-                                  className="w-full py-1.5 text-[9px] font-black bg-[#5A5A40] hover:bg-[#4A4A3C] text-[#FAF9F6] rounded-lg transition cursor-pointer"
+                                  className="w-full py-1.5 text-[9px] font-black bg-[#1E293B] hover:bg-[#0F172A] text-[#F8FAFC] rounded-lg transition cursor-pointer"
                                 >
                                   👀 Test / Buka Google Form
                                 </button>
@@ -4653,9 +4800,9 @@ export default function App() {
                       </div>
                       
                       {/* Google Form Integration Block */}
-                      <div className="border-t border-dashed border-[#E5E5DF] pt-4 space-y-3">
+                      <div className="border-t border-dashed border-[#E2E8F0] pt-4 space-y-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10.5px] font-extrabold text-[#4A4A3C] uppercase flex items-center gap-1.5">
+                          <span className="text-[10.5px] font-extrabold text-[#0F172A] uppercase flex items-center gap-1.5">
                             📊 Integrasi Google Form Publik
                           </span>
                           <span className="text-[8.5px] bg-red-700 text-white font-extrabold px-1.5 py-0.5 rounded uppercase font-mono tracking-wider">
@@ -4663,7 +4810,7 @@ export default function App() {
                           </span>
                         </div>
                         
-                        <p className="text-[10px] text-[#8C8C70] leading-relaxed">
+                        <p className="text-[10px] text-[#64748B] leading-relaxed">
                           Karena batasan preview sandbox, pelanggan eksternal tidak bisa membuka link portal mandiri di atas. 
                           <strong> Solusi Terbaik: Hubungkan dengan Google Form publik!</strong> Pelanggan mengisi form publik, lalu Anda sinkronkan di sini dengan mudah.
                         </p>
@@ -4678,7 +4825,7 @@ export default function App() {
                           </button>
 
                           {isGoogleFormGuideOpen && (
-                            <div className="bg-amber-500/5 p-3 rounded-2xl border border-amber-500/20 text-[10px] space-y-2 text-[#4A4A3C] leading-normal">
+                            <div className="bg-amber-500/5 p-3 rounded-2xl border border-amber-500/20 text-[10px] space-y-2 text-[#0F172A] leading-normal">
                               <p className="font-extrabold text-amber-900">
                                 🚀 Cara Tercepat & Termudah:
                               </p>
@@ -4750,7 +4897,7 @@ function createCustomerProfilingForm() {
                                           showToast("Gagal menyalin otomatis, silakan block manual teks code.", "error");
                                         }
                                       }}
-                                      className="absolute right-2 top-2 text-[8px] bg-[#FAF9F6]/20 text-[#FAF9F6] hover:bg-[#FAF9F6]/30 font-bold px-2 py-1 rounded-md transition cursor-pointer"
+                                      className="absolute right-2 top-2 text-[8px] bg-[#F8FAFC]/20 text-[#F8FAFC] hover:bg-[#F8FAFC]/30 font-bold px-2 py-1 rounded-md transition cursor-pointer"
                                     >
                                       Salin Script
                                     </button>
@@ -4817,8 +4964,8 @@ function createCustomerProfilingForm() {
                             onClick={handleImportFromGoogleForm}
                             className={`w-full py-3 px-4 font-black rounded-xl transition cursor-pointer flex items-center justify-center gap-2 text-xs uppercase tracking-wider ${
                               isImportingGoogleForm
-                                ? "bg-amber-300 text-[#4A4A3C] animate-pulse cursor-not-allowed"
-                                : "bg-gradient-to-r from-amber-500 to-[#5A5A40] text-white hover:opacity-95 shadow-md hover:shadow-lg"
+                                ? "bg-amber-300 text-[#0F172A] animate-pulse cursor-not-allowed"
+                                : "bg-gradient-to-r from-amber-500 to-[#1E293B] text-white hover:opacity-95 shadow-md hover:shadow-lg"
                             }`}
                           >
                             <RefreshCw className={`w-4 h-4 ${isImportingGoogleForm ? "animate-spin" : ""}`} />
@@ -4830,30 +4977,30 @@ function createCustomerProfilingForm() {
                   </div>
 
                   {/* Action 2: Tindakan Follow-Up Simulator (Section 4 in Flowchart) */}
-                  <div className="bg-[#FAF9F6] p-5 rounded-3xl border border-[#E5E5DF] shadow-xs relative overflow-hidden">
+                  <div className="bg-[#F8FAFC] p-5 rounded-3xl border border-[#E2E8F0] shadow-xs relative overflow-hidden">
                     <div className="absolute top-0 right-0 px-2.5 py-0.5 bg-amber-500 text-[8px] font-black text-white rounded-bl-xl uppercase tracking-widest">
                       Audit Action
                     </div>
 
-                    <h3 className="text-xs font-black text-[#4A4A3C] uppercase tracking-wider mb-2 flex items-center gap-2">
-                      <Clipboard className="w-4 h-4 text-[#5A5A40]" />
+                    <h3 className="text-xs font-black text-[#0F172A] uppercase tracking-wider mb-2 flex items-center gap-2">
+                      <Clipboard className="w-4 h-4 text-[#1E293B]" />
                       2. Tindakan / Follow-Up (Aris Desk)
                     </h3>
                     
                     <div className="max-h-[350px] overflow-y-auto pr-1.5 space-y-3.5">
-                      <p className="text-[11px] text-[#8C8C70] leading-relaxed">
+                      <p className="text-[11px] text-[#64748B] leading-relaxed">
                         Setiap toko yang mendapat peringatan (misal lesu order atau pinalti) wajib diisi tindakan konkret oleh Kepala Sales.
                       </p>
 
                       <div className="space-y-3.5">
                         <div>
-                          <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+                          <label className="block text-[10px] font-bold text-[#64748B] uppercase tracking-wider mb-1">
                             Pilih Toko Terdaftar:
                           </label>
                           <select
                             value={selectedCustomerIdForAction}
                             onChange={(e) => setSelectedCustomerIdForAction(e.target.value)}
-                            className="w-full bg-white border border-[#E5E5DF] rounded-xl px-2.5 py-2 text-xs text-[#4A4A3C] font-semibold focus:outline-hidden focus:ring-1 focus:ring-[#5A5A40]"
+                            className="w-full bg-white border border-[#E2E8F0] rounded-xl px-2.5 py-2 text-xs text-[#0F172A] font-semibold focus:outline-hidden focus:ring-1 focus:ring-[#1E293B]"
                           >
                             {customers.map(c => (
                               <option key={c.id} value={c.id}>
@@ -4865,13 +5012,13 @@ function createCustomerProfilingForm() {
 
                         <div className="grid grid-cols-2 gap-2">
                           <div>
-                            <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+                            <label className="block text-[10px] font-bold text-[#64748B] uppercase tracking-wider mb-1">
                               Aksi Tindakan:
                             </label>
                             <select
                               value={followUpAction}
                               onChange={(e) => setFollowUpAction(e.target.value)}
-                              className="w-full bg-white border border-[#E5E5DF] rounded-xl px-2 py-1.5 text-xs text-[#4A4A3C] focus:outline-hidden"
+                              className="w-full bg-white border border-[#E2E8F0] rounded-xl px-2 py-1.5 text-xs text-[#0F172A] focus:outline-hidden"
                             >
                               <option value="Kunjungan">🚶 Kunjungan Toko</option>
                               <option value="Kasih Promo">🎁 Kasih Promo</option>
@@ -4883,20 +5030,20 @@ function createCustomerProfilingForm() {
                           </div>
 
                           <div>
-                            <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+                            <label className="block text-[10px] font-bold text-[#64748B] uppercase tracking-wider mb-1">
                               Jadwal Tindakan:
                             </label>
                             <input
                               type="text"
                               readOnly
                               value={new Date().toLocaleDateString("id-ID")}
-                              className="w-full bg-[#E5E5DF]/30 border border-[#E5E5DF] rounded-xl px-2 py-1.5 text-xs text-[#8C8C70] font-bold text-center font-mono"
+                              className="w-full bg-[#E2E8F0]/30 border border-[#E2E8F0] rounded-xl px-2 py-1.5 text-xs text-[#64748B] font-bold text-center font-mono"
                             />
                           </div>
                         </div>
 
                         <div>
-                          <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+                          <label className="block text-[10px] font-bold text-[#64748B] uppercase tracking-wider mb-1">
                             Catatan & Detail Rencana Tindakan:
                           </label>
                           <textarea
@@ -4904,14 +5051,14 @@ function createCustomerProfilingForm() {
                             value={followUpNotes}
                             onChange={(e) => setFollowUpNotes(e.target.value)}
                             placeholder="Contoh: Akan kunjungi toko untuk cek stok & tawarkan promo paket sembako..."
-                            className="w-full bg-white border border-[#E5E5DF] rounded-xl p-2 text-xs text-[#4A4A3C] placeholder:text-[#8C8C70]/70 focus:outline-hidden focus:ring-1 focus:ring-[#5A5A40]"
+                            className="w-full bg-white border border-[#E2E8F0] rounded-xl p-2 text-xs text-[#0F172A] placeholder:text-[#64748B]/70 focus:outline-hidden focus:ring-1 focus:ring-[#1E293B]"
                           />
                         </div>
 
                         <button
                           type="button"
                           onClick={handleAddFollowUpAction}
-                          className="w-full bg-[#5A5A40] hover:bg-[#4A4A3C] text-[#FAF9F6] font-bold text-xs uppercase tracking-wider py-2.5 rounded-xl transition cursor-pointer"
+                          className="w-full bg-[#1E293B] hover:bg-[#0F172A] text-[#F8FAFC] font-bold text-xs uppercase tracking-wider py-2.5 rounded-xl transition cursor-pointer"
                         >
                           Simpan Tindakan (Poin +15)
                         </button>
@@ -4925,15 +5072,15 @@ function createCustomerProfilingForm() {
                 <div className="lg:col-span-2 space-y-6">
                   
                   {/* Customer database detailing list */}
-                  <div className="bg-[#FAF9F6] rounded-3xl p-6 border border-[#E5E5DF] shadow-xs">
+                  <div className="bg-[#F8FAFC] rounded-3xl p-6 border border-[#E2E8F0] shadow-xs">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4.5">
                       <div>
-                        <h3 className="text-sm font-extrabold text-[#4A4A3C] uppercase tracking-wider">
+                        <h3 className="text-sm font-extrabold text-[#0F172A] uppercase tracking-wider">
                           Daftar Profiling Retail DKR Sales
                         </h3>
-                        <p className="text-[10px] text-[#8C8C70]">Klasifikasi loyalitas otomatis berdasarkan estimasi omzet bulanan</p>
+                        <p className="text-[10px] text-[#64748B]">Klasifikasi loyalitas otomatis berdasarkan estimasi omzet bulanan</p>
                       </div>
-                      <span className="text-[10px] px-3 py-1 bg-[#FAF9F6] border border-[#E5E5DF] rounded-lg font-mono text-[#8C8C70] font-bold shrink-0 self-start sm:self-auto">
+                      <span className="text-[10px] px-3 py-1 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg font-mono text-[#64748B] font-bold shrink-0 self-start sm:self-auto">
                         Total {customers.length} Toko
                       </span>
                     </div>
@@ -4942,7 +5089,7 @@ function createCustomerProfilingForm() {
                       <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
                           <thead>
-                            <tr className="border-b border-[#E5E5DF] text-[10px] uppercase tracking-wider text-[#8C8C70] font-black bg-[#E5E5DF]/10">
+                            <tr className="border-b border-[#E2E8F0] text-[10px] uppercase tracking-wider text-[#64748B] font-black bg-[#E2E8F0]/10">
                               <th className="py-3 px-3">NAMA TOKO</th>
                               <th className="py-3 px-3">Sales & Area</th>
                               <th className="py-3 px-3">Statistik Toko</th>
@@ -4950,11 +5097,11 @@ function createCustomerProfilingForm() {
                               <th className="py-3 px-3 text-right">Aksi</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-[#E5E5DF]/50 text-xs">
+                          <tbody className="divide-y divide-[#E2E8F0]/50 text-xs">
                             {customers.map(c => {
                               // Define badge styling based on calculated Tiers
-                              let tierBadgeColor = "bg-[#4A4A3C]/10 text-[#4A4A3C] border-gray-300";
-                              let iconColor = "text-[#8C8C70]";
+                              let tierBadgeColor = "bg-[#0F172A]/10 text-[#0F172A] border-gray-300";
+                              let iconColor = "text-[#64748B]";
                               if (c.tier === "Platinum") {
                                 tierBadgeColor = "bg-purple-100 text-purple-800 border-purple-300 font-extrabold";
                                 iconColor = "text-purple-600";
@@ -4971,18 +5118,18 @@ function createCustomerProfilingForm() {
 
                               return (
                                 <React.Fragment key={c.id}>
-                                  <tr className="hover:bg-[#E5E5DF]/10 transition-colors">
+                                  <tr className="hover:bg-[#E2E8F0]/10 transition-colors">
                                     <td className="py-3 px-3">
                                       <div className="flex flex-col gap-1">
-                                        <span className="font-bold text-[#4A4A3C] text-sm uppercase">{c.name}</span>
-                                        <span className="text-[10px] font-mono text-[#8C8C70] truncate max-w-[200px]" title={c.address}>
+                                        <span className="font-bold text-[#0F172A] text-sm uppercase">{c.name}</span>
+                                        <span className="text-[10px] font-mono text-[#64748B] truncate max-w-[200px]" title={c.address}>
                                           📍 {c.address}
                                         </span>
                                         <div className="flex items-center gap-1.5 mt-0.5">
                                           <span className={`inline-flex items-center px-2 py-0.5 text-[8.5px] border rounded-full uppercase tracking-wider font-bold ${tierBadgeColor}`}>
                                             ★ Tier {c.tier}
                                           </span>
-                                          <span className="text-[9px] text-[#8C8C70] bg-[#FAF9F6] border border-[#E5E5DF] px-1.5 rounded uppercase">
+                                          <span className="text-[9px] text-[#64748B] bg-[#F8FAFC] border border-[#E2E8F0] px-1.5 rounded uppercase">
                                             {c.jenisToko}
                                           </span>
                                         </div>
@@ -4991,16 +5138,16 @@ function createCustomerProfilingForm() {
                                     
                                     <td className="py-3 px-3">
                                       <div className="flex flex-col">
-                                        <span className="font-bold text-[#4A4A3C] text-[11px]">{c.salesmanName}</span>
-                                        <span className="text-[10px] text-[#8C8C70]">Area: {c.area}</span>
+                                        <span className="font-bold text-[#0F172A] text-[11px]">{c.salesmanName}</span>
+                                        <span className="text-[10px] text-[#64748B]">Area: {c.area}</span>
                                       </div>
                                     </td>
 
                                     <td className="py-3 px-3">
-                                      <div className="flex flex-col gap-0.5 text-[10px] text-[#4A4A3C]">
+                                      <div className="flex flex-col gap-0.5 text-[10px] text-[#0F172A]">
                                         <div>Est. Omzet: <span className="font-bold font-mono">Rp {c.estimatedOmzet?.toLocaleString("id-ID")}</span></div>
                                         <div>Nota / Hari: <span className="font-bold font-mono">{c.notesPerDay || 0} nota</span></div>
-                                        <div>Kepemilikan: <span className="italic text-[#8C8C70]">{c.ownership} ({c.storeAgeYears} th)</span></div>
+                                        <div>Kepemilikan: <span className="italic text-[#64748B]">{c.ownership} ({c.storeAgeYears} th)</span></div>
                                       </div>
                                     </td>
 
@@ -5010,8 +5157,8 @@ function createCustomerProfilingForm() {
                                           🪙
                                         </div>
                                         <div className="flex flex-col">
-                                          <span className="font-mono text-xs font-black text-[#4A4A3C]">{c.points || 0}</span>
-                                          <span className="text-[9px] text-[#8C8C70] uppercase leading-none">Poin DKR</span>
+                                          <span className="font-mono text-xs font-black text-[#0F172A]">{c.points || 0}</span>
+                                          <span className="text-[9px] text-[#64748B] uppercase leading-none">Poin DKR</span>
                                         </div>
                                       </div>
                                     </td>
@@ -5019,7 +5166,7 @@ function createCustomerProfilingForm() {
                                     <td className="py-3 px-3 text-right">
                                       <button
                                         onClick={() => handleDeleteCustomer(c.id, c.name)}
-                                        className="p-1 text-[#8C8C70] hover:text-rose-600 rounded transition cursor-pointer"
+                                        className="p-1 text-[#64748B] hover:text-rose-600 rounded transition cursor-pointer"
                                         title="Hapus Profil Toko"
                                       >
                                         <Trash2 className="w-4 h-4" />
@@ -5029,24 +5176,24 @@ function createCustomerProfilingForm() {
 
                                   {/* Nested Actions Log timeline for the Customer */}
                                   <tr>
-                                    <td colSpan={5} className="py-2.5 px-6 bg-[#FAF9F6]/60 border-b border-[#E5E5DF]/45">
+                                    <td colSpan={5} className="py-2.5 px-6 bg-[#F8FAFC]/60 border-b border-[#E2E8F0]/45">
                                       <div className="flex flex-col gap-1">
-                                        <span className="text-[9px] font-black text-[#8C8C70] uppercase tracking-wider block">
+                                        <span className="text-[9px] font-black text-[#64748B] uppercase tracking-wider block">
                                           Riwayat Tindakan & Follow-Up ({c.actionsLog?.length || 0}):
                                         </span>
                                         
                                         {c.actionsLog && c.actionsLog.length > 0 ? (
                                           <div className="space-y-1.5 mt-1 list-none pl-0">
                                             {c.actionsLog.map((log: any, idx: number) => (
-                                              <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between text-[11px] bg-white/50 p-2 rounded-lg border border-[#E5E5DF]/40 gap-1.5">
+                                              <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between text-[11px] bg-white/50 p-2 rounded-lg border border-[#E2E8F0]/40 gap-1.5">
                                                 <div className="flex items-center gap-2">
-                                                  <span className="font-mono text-[9px] bg-[#E5E5DF] text-[#4A4A3C] px-1.5 py-0.5 rounded font-bold shrink-0">
+                                                  <span className="font-mono text-[9px] bg-[#E2E8F0] text-[#0F172A] px-1.5 py-0.5 rounded font-bold shrink-0">
                                                     {log.date}
                                                   </span>
-                                                  <span className="font-bold text-[#5A5A40]">
+                                                  <span className="font-bold text-[#1E293B]">
                                                     {log.action}
                                                   </span>
-                                                  <span className="text-[#8C8C70] italic truncate max-w-[300px]" title={log.notes}>
+                                                  <span className="text-[#64748B] italic truncate max-w-[300px]" title={log.notes}>
                                                     "-" {log.notes}
                                                   </span>
                                                 </div>
@@ -5057,7 +5204,7 @@ function createCustomerProfilingForm() {
                                             ))}
                                           </div>
                                         ) : (
-                                          <span className="text-[10px] text-[#8C8C70] italic">Belum ada rincian tindakan follow-up audit. Pilih panel simulator sebelah kiri untuk menjadwalkan tindakan baru.</span>
+                                          <span className="text-[10px] text-[#64748B] italic">Belum ada rincian tindakan follow-up audit. Pilih panel simulator sebelah kiri untuk menjadwalkan tindakan baru.</span>
                                         )}
                                       </div>
                                     </td>
@@ -5121,30 +5268,30 @@ function createCustomerProfilingForm() {
                 <div className="lg:col-span-1 space-y-6">
                   
                   {/* Action 3: Loyalty Gift Exchange Simulator */}
-                  <div className="bg-[#FAF9F6] p-6 rounded-3xl border border-[#E5E5DF] shadow-xs relative overflow-hidden">
+                  <div className="bg-[#F8FAFC] p-6 rounded-3xl border border-[#E2E8F0] shadow-xs relative overflow-hidden">
                     <div className="absolute top-0 right-0 px-2.5 py-0.5 bg-emerald-600 text-[8px] font-black text-white rounded-bl-xl uppercase tracking-widest">
                       Merchant Redeem
                     </div>
 
-                    <h3 className="text-xs font-black text-[#4A4A3C] uppercase tracking-wider mb-2 flex items-center gap-2">
+                    <h3 className="text-xs font-black text-[#0F172A] uppercase tracking-wider mb-2 flex items-center gap-2">
                       <Gift className="w-4 h-4 text-emerald-600" />
                       Klaim Reward Merchant
                     </h3>
                     
                     <div className="space-y-4">
-                      <p className="text-[11px] text-[#8C8C70] leading-relaxed">
+                      <p className="text-[11px] text-[#64748B] leading-relaxed">
                         Mengkonversi poin loyalti yang diraih toko pelanggan setia dengan cinderamata atau subsidi tagihan penjualan DKR.
                       </p>
 
                       <div className="space-y-3.5">
                         <div>
-                          <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+                          <label className="block text-[10px] font-bold text-[#64748B] uppercase tracking-wider mb-1">
                             Pilih Toko:
                           </label>
                           <select
                             value={selectedCustomerIdForRedeem}
                             onChange={(e) => setSelectedCustomerIdForRedeem(e.target.value)}
-                            className="w-full bg-white border border-[#E5E5DF] rounded-xl px-2.5 py-2 text-xs text-[#4A4A3C] font-semibold focus:outline-hidden"
+                            className="w-full bg-white border border-[#E2E8F0] rounded-xl px-2.5 py-2 text-xs text-[#0F172A] font-semibold focus:outline-hidden"
                           >
                             {customers.map(c => (
                               <option key={c.id} value={c.id}>
@@ -5155,13 +5302,13 @@ function createCustomerProfilingForm() {
                         </div>
 
                         <div>
-                          <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+                          <label className="block text-[10px] font-bold text-[#64748B] uppercase tracking-wider mb-1">
                             Katalog Hadiah (Sponsor):
                           </label>
                           <select
                             value={selectedRewardId}
                             onChange={(e) => setSelectedRewardId(e.target.value)}
-                            className="w-full bg-white border border-[#E5E5DF] rounded-xl px-2.5 py-2 text-xs text-[#4A4A3C] focus:outline-hidden"
+                            className="w-full bg-white border border-[#E2E8F0] rounded-xl px-2.5 py-2 text-xs text-[#0F172A] focus:outline-hidden"
                           >
                             {[...rewardMerchants, ...katalogHadiah].map(r => (
                               <option key={r.id} value={r.id}>
@@ -5183,15 +5330,15 @@ function createCustomerProfilingForm() {
                   </div>
 
                   {/* Informational Rewards Display Panel */}
-                  <div className="bg-[#FAF9F6] p-6 rounded-3xl border border-[#E5E5DF] shadow-xs">
+                  <div className="bg-[#F8FAFC] p-6 rounded-3xl border border-[#E2E8F0] shadow-xs">
                     <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-xs font-black text-[#4A4A3C] uppercase tracking-wider flex items-center gap-2">
+                      <h3 className="text-xs font-black text-[#0F172A] uppercase tracking-wider flex items-center gap-2">
                         <Crown className="w-4 h-4 text-amber-500" />
                         Katalog Resmi & Nilai Hadiah
                       </h3>
                       <div className="flex gap-2">
-                        <button onClick={() => setRewardModal({ isOpen: true, type: 'merchant' })} className="text-[10px] bg-white border border-[#E5E5DF] px-2 py-1 rounded-md hover:bg-gray-50">+ Merchant</button>
-                        <button onClick={() => setRewardModal({ isOpen: true, type: 'catalog' })} className="text-[10px] bg-white border border-[#E5E5DF] px-2 py-1 rounded-md hover:bg-gray-50">+ Katalog</button>
+                        <button onClick={() => setRewardModal({ isOpen: true, type: 'merchant' })} className="text-[10px] bg-white border border-[#E2E8F0] px-2 py-1 rounded-md hover:bg-gray-50">+ Merchant</button>
+                        <button onClick={() => setRewardModal({ isOpen: true, type: 'catalog' })} className="text-[10px] bg-white border border-[#E2E8F0] px-2 py-1 rounded-md hover:bg-gray-50">+ Katalog</button>
                       </div>
                     </div>
                     <div className="space-y-2.5">
@@ -5199,11 +5346,11 @@ function createCustomerProfilingForm() {
                         <div 
                           key={item.id} 
                           onClick={() => setRewardModal({ isOpen: true, type: 'pointsRequired' in item ? 'merchant' : 'catalog', item })}
-                          className="p-3 bg-white border border-[#E5E5DF]/60 rounded-xl flex items-center justify-between gap-3 text-xs cursor-pointer hover:border-[#5A5A40] transition"
+                          className="p-3 bg-white border border-[#E2E8F0]/60 rounded-xl flex items-center justify-between gap-3 text-xs cursor-pointer hover:border-[#1E293B] transition"
                         >
                           <div>
-                            <div className="font-bold text-[#4A4A3C]">{item.name}</div>
-                            <div className="text-[10px] text-[#8C8C70]">{'sponsor' in item ? `Sponsor: ${item.sponsor}` : item.description}</div>
+                            <div className="font-bold text-[#0F172A]">{item.name}</div>
+                            <div className="text-[10px] text-[#64748B]">{'sponsor' in item ? `Sponsor: ${item.sponsor}` : item.description}</div>
                           </div>
                           <div className="text-emerald-700 font-extrabold pr-1 whitespace-nowrap">
                             {('pointsRequired' in item ? item.pointsRequired : (item as CatalogHadiah).pointsValue)} Poin
@@ -5219,8 +5366,8 @@ function createCustomerProfilingForm() {
                 <div className="lg:col-span-2 space-y-6">
                   
                   {/* Claims Rewards log list */}
-                  <div className="bg-[#FAF9F6] rounded-3xl p-6 border border-[#E5E5DF] shadow-xs">
-                    <h3 className="text-xs font-black text-[#4A4A3C] uppercase tracking-wider mb-3">
+                  <div className="bg-[#F8FAFC] rounded-3xl p-6 border border-[#E2E8F0] shadow-xs">
+                    <h3 className="text-xs font-black text-[#0F172A] uppercase tracking-wider mb-3">
                       Riwayat Log Redeem Hadiah Portal
                     </h3>
 
@@ -5228,22 +5375,22 @@ function createCustomerProfilingForm() {
                       {loyaltyRedeemHistory.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           {loyaltyRedeemHistory.map((h: any) => (
-                            <div key={h.id} className="p-4 bg-white border border-[#E5E5DF] rounded-2xl flex flex-col justify-between gap-3 shadow-xs">
+                            <div key={h.id} className="p-4 bg-white border border-[#E2E8F0] rounded-2xl flex flex-col justify-between gap-3 shadow-xs">
                               <div className="flex flex-col gap-1">
                                 <div className="flex items-center justify-between">
-                                  <span className="text-[9px] font-black uppercase text-[#8C8C70]/80 tracking-wider">Toko Penerima:</span>
+                                  <span className="text-[9px] font-black uppercase text-[#64748B]/80 tracking-wider">Toko Penerima:</span>
                                   <span className="text-[9px] bg-emerald-500/10 text-emerald-800 font-extrabold px-1.5 py-0.5 rounded uppercase">
                                     Berhasil
                                   </span>
                                 </div>
-                                <span className="text-xs font-black text-[#4A4A3C] uppercase">{h.customerName}</span>
+                                <span className="text-xs font-black text-[#0F172A] uppercase">{h.customerName}</span>
                                 <div className="text-xs font-extrabold text-emerald-700 bg-emerald-500/5 px-2.5 py-1.5 rounded-xl border border-emerald-500/15 mt-1 flex items-center gap-1.5 font-sans">
                                   <span>🎁</span>
                                   <span>{h.rewardName}</span>
                                 </div>
                               </div>
-                              <div className="flex items-center justify-between border-t border-[#E5E5DF]/60 pt-2 text-[10px]">
-                                <span className="font-mono bg-[#E5E5DF]/50 text-[#8C8C70] px-1.5 py-0.5 rounded">
+                              <div className="flex items-center justify-between border-t border-[#E2E8F0]/60 pt-2 text-[10px]">
+                                <span className="font-mono bg-[#E2E8F0]/50 text-[#64748B] px-1.5 py-0.5 rounded">
                                   {h.date}
                                 </span>
                                 <span className="text-rose-800 font-extrabold font-mono text-[10px]">
@@ -5254,7 +5401,7 @@ function createCustomerProfilingForm() {
                           ))}
                         </div>
                       ) : (
-                        <div className="text-center p-8 bg-[#E5E5DF]/20 rounded-2xl border border-dashed border-[#E5E5DF] text-xs text-[#8C8C70] flex flex-col items-center justify-center gap-2">
+                        <div className="text-center p-8 bg-[#E2E8F0]/20 rounded-2xl border border-dashed border-[#E2E8F0] text-xs text-[#64748B] flex flex-col items-center justify-center gap-2">
                           <span className="text-lg">📭</span>
                           <p>Belum ada klaim hadiah yang terproses. Pilih panel di sebelah kiri untuk memproses klaim cinderamata pertama Anda.</p>
                         </div>
@@ -5265,6 +5412,777 @@ function createCustomerProfilingForm() {
                 </div>
 
               </div>
+            </motion.div>
+          )}
+
+          {/* TAB 7.5: PRESENTASI MEETING (KECUALI ARIS DAN IMAM) */}
+          {activeTab === "presentation" && (
+            <motion.div
+              key="presentation-tab"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              className="space-y-6"
+            >
+              {/* Header Banner */}
+              <div className="bg-gradient-to-r from-[#00AA13] to-teal-700 rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
+                <div className="absolute top-0 right-0 -mr-20 -mt-10 w-80 h-80 bg-white/10 rounded-full blur-2xl" />
+                <div className="absolute bottom-0 right-2 w-32 h-32 bg-emerald-400/20 rounded-full blur-xl" />
+                
+                <h2 className="text-xl md:text-2xl font-serif italic font-extrabold tracking-tight flex items-center gap-2">
+                  <Presentation className="w-6 h-6 shrink-0 text-white" />
+                  PRESENTASI MEETING PORTAL
+                </h2>
+                <p className="text-xs text-emerald-50/90 max-w-2xl mt-2 leading-relaxed font-semibold">
+                  Halaman khusus presentasi meeting mingguan/bulanan. Portal menyajikan performa audit komparatif dengan mengecualikan ARIS dan IMAM secara otomatis untuk kebutuhan presentasi tim audit utama.
+                </p>
+
+                {/* Pull Data Controls inside Header */}
+                <div className="flex flex-wrap items-center gap-3 mt-6 pt-6 border-t border-white/20">
+                  <button
+                    onClick={() => handleFetchReportsFromSheets(false)}
+                    disabled={isFetchingReports}
+                    className="bg-white hover:bg-emerald-50 text-emerald-900 font-extrabold text-xs uppercase tracking-wider px-5 py-3 rounded-xl transition shadow-sm hover:shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isFetchingReports ? "animate-spin" : ""}`} />
+                    {isFetchingReports ? "Menghubungi Google Sheets..." : "Tarik Data Real-time dari Google Sheets"}
+                  </button>
+                  
+                  {lastFetchTime && (
+                    <span className="text-[10px] font-mono font-bold bg-white/20 px-3 py-1 bg-emerald-500/30 rounded-lg text-white">
+                      Sinkron Terakhir: {lastFetchTime}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Informational Integration Guide Card */}
+              <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-3xl p-6 shadow-xs relative">
+                <div className="absolute top-4 right-4 bg-[#00AA13]/10 text-[#00AA13] text-[10px] font-black uppercase px-2.5 py-1 rounded-md">
+                  Meeting Mode
+                </div>
+                <h3 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider flex items-center gap-2 mb-3">
+                  <Info className="w-4 h-4 text-[#00AA13]" />
+                  Informasi Filter Presentasi
+                </h3>
+                <p className="text-xs text-[#1E293B] leading-relaxed font-semibold">
+                  Semua kartu rekap, metrik kecukupan, pencapaian Call Plan, Effective Call Rate, dan tabel target bulanan di bawah dihitung otomatis dengan menyembunyikan kontribusi laporan dari salesman <strong className="text-[#00AA13]">ARIS</strong> dan <strong className="text-[#00AA13]">IMAM</strong>.
+                </p>
+              </div>
+
+              {/* Sub Mode Selectors (Dashboard Visual vs Target Bulan) */}
+              <div className="flex bg-[#E2E8F0]/35 p-1 rounded-2xl gap-1 w-full sm:w-auto relative mb-6">
+                <button
+                  type="button"
+                  onClick={() => setKpiTabMode("dashboard")}
+                  className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-xs uppercase font-black cursor-pointer transition flex justify-center items-center gap-2 ${
+                    kpiTabMode === "dashboard" 
+                      ? "bg-[#1E293B] text-white shadow-xs" 
+                      : "text-[#1E293B] hover:bg-[#E2E8F0]/50"
+                  }`}
+                >
+                  <TrendingUp className="w-4 h-4" />
+                  Dashboard Visual
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setKpiTabMode("goals")}
+                  className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-xs uppercase font-black cursor-pointer transition flex justify-center items-center gap-2 ${
+                    kpiTabMode === "goals" 
+                      ? "bg-[#00AA13] text-white shadow-xs" 
+                      : "text-[#1E293B] hover:bg-[#E2E8F0]/50"
+                  }`}
+                >
+                  <Target className="w-4 h-4" />
+                  Target Bulan (Inti)
+                </button>
+              </div>
+
+              {kpiTabMode === "dashboard" && (
+                <>
+                  {/* Filtering Controls */}
+                  <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-3xl p-6 space-y-4">
+                    <div className="flex flex-wrap items-end justify-between gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full lg:w-auto grow">
+                        {/* Dropdown Salesman (Excluding Aris and Imam) */}
+                        <div>
+                          <label className="block text-[10px] font-bold text-[#64748B] uppercase tracking-wider mb-1">
+                            Filter Nama Salesman
+                          </label>
+                          <select
+                            value={kpiSalesFilter === "ARIS" || kpiSalesFilter === "IMAM" ? "ALL" : kpiSalesFilter}
+                            onChange={(e) => setKpiSalesFilter(e.target.value)}
+                            className="w-full bg-[#F8FAFC] border border-[#E2E8F0] text-[#0F172A] font-extrabold text-xs uppercase px-3 py-2.5 rounded-xl focus:outline-hidden cursor-pointer"
+                          >
+                            <option value="ALL">Semua Salesman</option>
+                            {Array.from(new Set(
+                              targetDatasetForKpi
+                                .map((r: any) => (r.salesmanName || "").toUpperCase().trim())
+                                .filter(name => name !== "ARIS" && name !== "IMAM" && name !== "")
+                            )).map(name => (
+                              <option key={name} value={name}>{name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Rentang Analisis */}
+                        <div>
+                          <label className="block text-[10px] font-bold text-[#64748B] uppercase tracking-wider mb-1">
+                            Rentang Analisis KPI
+                          </label>
+                          <div className="flex border border-[#E2E8F0] rounded-xl overflow-hidden bg-white max-w-sm">
+                            {(["all", "daily", "weekly", "monthly"] as const).map((mode) => {
+                              const labels = { all: "Semua", daily: "Hari", weekly: "Minggu", monthly: "Bulan" };
+                              const isActive = kpiTimeFrame === mode;
+                              return (
+                                <button
+                                  key={mode}
+                                  onClick={() => {
+                                    setKpiTimeFrame(mode);
+                                    setKpiSelectedDate("ALL");
+                                    setKpiSelectedWeek("ALL");
+                                    setKpiSelectedMonth("ALL");
+                                  }}
+                                  className={`flex-1 py-2 text-[11px] font-black uppercase text-center transition-all cursor-pointer ${
+                                    isActive
+                                      ? "bg-[#1E293B] text-[#F8FAFC]"
+                                      : "text-[#64748B] hover:bg-[#E2E8F0]/20 hover:text-[#0F172A]"
+                                  }`}
+                                >
+                                  {labels[mode]}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Dynamic selector block */}
+                        <div>
+                          {kpiTimeFrame === "all" && (
+                            <div>
+                              <label className="block text-[10px] font-bold text-[#64748B] uppercase tracking-wider mb-1">
+                                Data Terakumulasi
+                              </label>
+                              <div className="text-xs font-bold text-[#1E293B] bg-[#E2E8F0]/20 px-3 py-2.5 rounded-xl border border-[#E2E8F0]/50">
+                                Menghitung Semua Hari Lapor
+                              </div>
+                            </div>
+                          )}
+
+                          {kpiTimeFrame === "daily" && (
+                            <div>
+                              <label className="block text-[10px] font-bold text-[#00AA13] uppercase tracking-wider mb-1">
+                                Pilih Tanggal Spesifik
+                              </label>
+                              <div className="flex gap-1.5">
+                                <input
+                                  type="date"
+                                  value={kpiSelectedDate === "ALL" ? "" : kpiSelectedDate}
+                                  onChange={(e) => setKpiSelectedDate(e.target.value || "ALL")}
+                                  className="grow bg-[#F8FAFC] border border-emerald-200 text-emerald-900 font-black text-xs px-3 py-2 rounded-xl focus:outline-hidden cursor-pointer h-10"
+                                />
+                                {kpiSelectedDate !== "ALL" && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setKpiSelectedDate("ALL")}
+                                    className="px-2.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold text-[10px] uppercase rounded-xl cursor-pointer transition-all flex items-center justify-center border border-emerald-200 h-10 shrink-0"
+                                  >
+                                    Semua
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {kpiTimeFrame === "weekly" && (() => {
+                            const targetDataset = targetDatasetForKpi.filter(r => {
+                              const nameUpper = (r.salesmanName || "").toUpperCase().trim();
+                              return nameUpper !== "ARIS" && nameUpper !== "IMAM";
+                            });
+                            const MONTH_NAMES_SHORT = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];
+                            const getWeekKeyLocal = (dateStr: string) => {
+                              const d = new Date(dateStr);
+                              if (isNaN(d.getTime())) return { key: "2026-W01", label: "Minggu 1" };
+                              const start = new Date(d.getFullYear(), 0, 1);
+                              const diff = d.getTime() - start.getTime() + ((start.getTimezoneOffset() - d.getTimezoneOffset()) * 60000);
+                              const oneDay = 1000 * 60 * 60 * 24;
+                              const dayOfYear = Math.floor(diff / oneDay) + 1;
+                              const weekNo = Math.ceil(dayOfYear / 7);
+                              const mLabel = d.toLocaleString("id-ID", { month: "short" }) || MONTH_NAMES_SHORT[d.getMonth()];
+                              return {
+                                key: `${d.getFullYear()}-W${String(weekNo).padStart(2, '0')}`,
+                                label: `Minggu Ke-${weekNo} (${mLabel} ${d.getFullYear()})`
+                              };
+                            };
+
+                            const weekMap = new Map<string, string>();
+                            targetDataset.forEach((r: any) => {
+                              if (r.date) {
+                                const info = getWeekKeyLocal(r.date);
+                                weekMap.set(info.key, info.label);
+                              }
+                            });
+                            const sortedWeeks = Array.from(weekMap.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+
+                            return (
+                              <div>
+                                <label className="block text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-1">
+                                  Pilih Minggu Laporan
+                                </label>
+                                <select
+                                  value={kpiSelectedWeek}
+                                  onChange={(e) => setKpiSelectedWeek(e.target.value)}
+                                  className="w-full bg-[#F8FAFC] border border-emerald-200 text-emerald-900 font-extrabold text-xs uppercase px-3 py-2.5 rounded-xl focus:outline-hidden cursor-pointer"
+                                >
+                                  <option value="ALL">Semua Minggu ({sortedWeeks.length} Periode)</option>
+                                  {sortedWeeks.map(([wkKey, wkLabel]) => (
+                                    <option key={wkKey} value={wkKey}>{wkLabel}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            );
+                          })()}
+
+                          {kpiTimeFrame === "monthly" && (() => {
+                            const targetDataset = targetDatasetForKpi.filter(r => {
+                              const nameUpper = (r.salesmanName || "").toUpperCase().trim();
+                              return nameUpper !== "ARIS" && nameUpper !== "IMAM";
+                            });
+                            const MONTH_NAMES_LONG = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+                            const getMonthLabelLocal = (dateStr: string) => {
+                              const d = new Date(dateStr);
+                              if (isNaN(d.getTime())) return "Mei 2026";
+                              return `${MONTH_NAMES_LONG[d.getMonth()]} ${d.getFullYear()}`;
+                            };
+
+                            const monthMap = new Map<string, string>();
+                            targetDataset.forEach((r: any) => {
+                              if (r.date) {
+                                const key = r.date.substring(0, 7);
+                                const label = getMonthLabelLocal(r.date);
+                                monthMap.set(key, label);
+                              }
+                            });
+                            const sortedMonths = Array.from(monthMap.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+
+                            return (
+                              <div>
+                                <label className="block text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-1">
+                                  Pilih Bulan Laporan
+                                </label>
+                                <select
+                                  value={kpiSelectedMonth}
+                                  onChange={(e) => setKpiSelectedMonth(e.target.value)}
+                                  className="w-full bg-[#F8FAFC] border border-emerald-200 text-emerald-900 font-extrabold text-xs uppercase px-3 py-2.5 rounded-xl focus:outline-hidden cursor-pointer"
+                                >
+                                  <option value="ALL">Semua Bulan ({sortedMonths.length} Bulan)</option>
+                                  {sortedMonths.map(([mKey, mLabel]) => (
+                                    <option key={mKey} value={mKey}>{mLabel}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </div>
+
+                      {/* Source indicator */}
+                      <div className="shrink-0">
+                        <div className="bg-white border border-[#E2E8F0] p-3 rounded-2xl shadow-sm">
+                          <span className="block text-[9px] font-extrabold text-[#64748B] uppercase mb-1.5 text-left">Sumber Data KPI</span>
+                          <div className="flex bg-[#E2E8F0]/35 p-1 rounded-xl gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setKpiDataSource("sheets")}
+                              className={`px-3 py-1.5 rounded-lg text-[10px] uppercase font-black cursor-pointer transition flex items-center gap-1.5 ${
+                                kpiDataSource === "sheets" 
+                                  ? "bg-[#00AA13] text-white shadow-xs" 
+                                  : "text-[#1E293B] hover:bg-[#E2E8F0]/50"
+                              }`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${fetchedReports.length > 0 ? "bg-emerald-300 animate-pulse" : "bg-orange-400"}`} />
+                              Sheets
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setKpiDataSource("local")}
+                              className={`px-3 py-1.5 rounded-lg text-[10px] uppercase font-black cursor-pointer transition flex items-center gap-1.5 ${
+                                kpiDataSource === "local" 
+                                  ? "bg-[#1E293B] text-white shadow-xs" 
+                                  : "text-[#1E293B] hover:bg-[#E2E8F0]/50"
+                              }`}
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                              Lokal
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Dashboard dynamic grid cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {(() => {
+                      // Custom local filtered set
+                      const targetDataset = targetDatasetForKpi.filter(r => {
+                        const nameUpper = (r.salesmanName || "").toUpperCase().trim();
+                        return nameUpper !== "ARIS" && nameUpper !== "IMAM";
+                      });
+
+                      const MONTH_NAMES_LONG = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+                      const MONTH_NAMES_SHORT = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];
+
+                      const getMonthLabelLocal = (dateStr: string): string => {
+                        const d = new Date(dateStr);
+                        if (isNaN(d.getTime())) return "Mei 2026";
+                        return `${MONTH_NAMES_LONG[d.getMonth()]} ${d.getFullYear()}`;
+                      };
+
+                      const getDayOfWeekLabelLocal = (dateStr: string): string => {
+                        const d = new Date(dateStr);
+                        if (isNaN(d.getTime())) return dateStr;
+                        const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+                        return `${days[d.getDay()]}, ${d.getDate()} ${MONTH_NAMES_LONG[d.getMonth()]} ${d.getFullYear()}`;
+                      };
+
+                      const getWeekKeyLocal = (dateStr: string) => {
+                        const d = new Date(dateStr);
+                        if (isNaN(d.getTime())) {
+                          return { key: "2026-W01", label: "Minggu 1" };
+                        }
+                        const start = new Date(d.getFullYear(), 0, 1);
+                        const diff = d.getTime() - start.getTime() + ((start.getTimezoneOffset() - d.getTimezoneOffset()) * 60000);
+                        const oneDay = 1000 * 60 * 60 * 24;
+                        const dayOfYear = Math.floor(diff / oneDay) + 1;
+                        const weekNo = Math.ceil(dayOfYear / 7);
+                        return {
+                          key: `${d.getFullYear()}-W${String(weekNo).padStart(2, '0')}`,
+                          label: `Minggu Ke-${weekNo} (${MONTH_NAMES_SHORT[d.getMonth()]} ${d.getFullYear()})`
+                        };
+                      };
+
+                      const groups: { [name: string]: any } = {};
+
+                      const sanitizedFilter = kpiSalesFilter === "ARIS" || kpiSalesFilter === "IMAM" ? "ALL" : kpiSalesFilter;
+
+                      targetDataset.forEach((rep: any) => {
+                        // Filter name
+                        if (sanitizedFilter !== "ALL" && rep.salesmanName.toUpperCase().trim() !== sanitizedFilter) {
+                          return;
+                        }
+
+                        let periodKey = "all";
+                        let periodLabel = "Semua Hari Lapor";
+
+                        if (kpiTimeFrame === "daily") {
+                          periodKey = rep.date;
+                          periodLabel = getDayOfWeekLabelLocal(rep.date);
+                        } else if (kpiTimeFrame === "weekly") {
+                          const wkInfo = getWeekKeyLocal(rep.date);
+                          periodKey = wkInfo.key;
+                          periodLabel = wkInfo.label;
+                        } else if (kpiTimeFrame === "monthly") {
+                          periodKey = rep.date.substring(0, 7);
+                          periodLabel = getMonthLabelLocal(rep.date);
+                        }
+
+                        // Timeframe filters
+                        if (kpiTimeFrame === "daily" && kpiSelectedDate !== "ALL" && periodKey !== kpiSelectedDate) return;
+                        if (kpiTimeFrame === "weekly" && kpiSelectedWeek !== "ALL" && periodKey !== kpiSelectedWeek) return;
+                        if (kpiTimeFrame === "monthly" && kpiSelectedMonth !== "ALL" && periodKey !== kpiSelectedMonth) return;
+
+                        const groupKey = `${rep.salesmanName.toUpperCase().trim()}___${periodKey}`;
+
+                        if (!groups[groupKey]) {
+                          groups[groupKey] = {
+                            salesmanName: rep.salesmanName,
+                            dates: new Set<string>(),
+                            periodKey,
+                            periodLabel,
+                            tc: 0,
+                            cp: 0,
+                            ec: 0,
+                            skuTotal: 0,
+                            operationalCost: 0,
+                            billsReceived: 0,
+                            billsTransfer: 0,
+                            billsGiro: 0
+                          };
+                        }
+
+                        groups[groupKey].dates.add(rep.date);
+                        groups[groupKey].tc += Number(rep.tc || 0);
+                        groups[groupKey].cp += Number(rep.cp || 0);
+                        groups[groupKey].ec += Number(rep.ec || 0);
+                        groups[groupKey].skuTotal += Number(rep.skuTotal || 0);
+                        groups[groupKey].operationalCost += Number(rep.operationalCost || 0);
+                        groups[groupKey].billsReceived += Number(rep.billsReceived || 0);
+                        groups[groupKey].billsTransfer += Number(rep.billsTransfer || 0);
+                        groups[groupKey].billsGiro += Number(rep.billsGiro || 0);
+                      });
+
+                      const groupedList = Object.values(groups);
+
+                      if (kpiDataSource === "sheets" && fetchedReports.length === 0) {
+                        return (
+                          <div className="col-span-full text-center p-10 bg-[#00AA13]/5 border border-dashed border-[#00AA13]/20 rounded-3xl space-y-4">
+                            <div className="text-[#00AA13] font-extrabold text-sm md:text-base">
+                              Belum Ada Data Laporan Real-time di Google Sheets
+                            </div>
+                            <p className="text-xs text-[#64748B] max-w-lg mx-auto leading-relaxed">
+                              Sistem mendeteksi lembar sebar Google Sheets Anda masih kosong. Tekan tombol <strong className="text-[#00AA13]">Tarik Data Real-time</strong> di atas untuk sinkronisasi.
+                            </p>
+                          </div>
+                        );
+                      }
+
+                      if (groupedList.length === 0) {
+                        return (
+                          <div className="col-span-full text-center p-12 bg-[#F8FAFC] border border-[#E2E8F0] rounded-3xl text-sm text-[#64748B] font-bold">
+                            Tidak ada data pencapaian KPI yang cocok dengan filter parameter terpilih.
+                          </div>
+                        );
+                      }
+
+                      return groupedList.map((g: any, idx: number) => {
+                        const cntDays = g.dates.size || 1;
+                        const tcSum = g.tc;
+                        const cpSum = g.cp;
+                        const ecSum = g.ec;
+                        const skuSum = g.skuTotal;
+                        
+                        const cpPct = tcSum > 0 ? (cpSum / tcSum) * 100 : 0;
+                        const ecPct = cpSum > 0 ? (ecSum / cpSum) * 100 : 0;
+                        
+                        const targetSku = Math.round(112.5 * cntDays);
+                        const skuPct = targetSku > 0 ? (skuSum / targetSku) * 100 : 0;
+
+                        const isLayak = cpPct >= 80 && ecPct >= 40;
+
+                        const smMatch = salesmen.find(s => s.name.toUpperCase().trim() === g.salesmanName.toUpperCase().trim());
+                        const salesmanArea = smMatch ? smMatch.area : "DKR SEKTOR";
+
+                        const initialChar = g.salesmanName ? g.salesmanName.charAt(0).toUpperCase() : "S";
+
+                        let headerPeriodText = "";
+                        let headerIcon = <Calendar className="w-3.5 h-3.5 text-[#00AA13]" />;
+                        
+                        if (kpiTimeFrame === "all") {
+                          headerPeriodText = `REKAP TOTAL • ${cntDays} HARI LAPOR`;
+                          headerIcon = <Award className="w-3.5 h-3.5 text-[#00AA13]" />;
+                        } else if (kpiTimeFrame === "daily") {
+                          headerPeriodText = g.periodLabel.toUpperCase();
+                          headerIcon = <Clock className="w-3.5 h-3.5 text-[#00AA13]" />;
+                        } else if (kpiTimeFrame === "weekly") {
+                          headerPeriodText = `${g.periodLabel.toUpperCase()} • ${cntDays} HARI`;
+                          headerIcon = <CalendarRange className="w-3.5 h-3.5 text-emerald-500" />;
+                        } else if (kpiTimeFrame === "monthly") {
+                          headerPeriodText = `${g.periodLabel.toUpperCase()} • ${cntDays} HARI`;
+                          headerIcon = <CalendarDays className="w-3.5 h-3.5 text-[#00AA13]" />;
+                        }
+
+                        return (
+                          <motion.div
+                            key={g.salesmanName + "-psm-" + g.periodKey + "-" + idx}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: idx * 0.05 }}
+                            className="w-full bg-[#F8FAFC] border-t-4 border-[#00AA13] rounded-3xl p-5 border border-[#E2E8F0] shadow-md hover:shadow-xl transition-all relative flex flex-col justify-between text-left"
+                          >
+                            <div className="flex items-center justify-between text-[#64748B] text-[10px] font-black uppercase tracking-wider mb-2">
+                              <span className="flex items-center gap-1 text-[9px] truncate max-w-[70%]">
+                                {headerIcon}
+                                <span className="truncate">{headerPeriodText}</span>
+                              </span>
+                              <span className={`px-2.5 py-0.5 rounded-full font-black text-[9px] shrink-0 ${
+                                isLayak 
+                                  ? "bg-emerald-100 text-emerald-800 border border-emerald-200" 
+                                  : "bg-rose-100 text-rose-800 border border-rose-200"
+                              }`}>
+                                {isLayak ? "LAYAK" : "TIDAK LAYAK"}
+                              </span>
+                            </div>
+
+                            <div className="flex items-start justify-between mt-1 mb-4">
+                              <div>
+                                <h4 className="text-xl font-serif italic font-black tracking-tight text-[#0F172A]">
+                                  {g.salesmanName}
+                                </h4>
+                              </div>
+                              <div className="bg-[#1E293B]/10 text-[#1E293B] text-[9.5px] font-extrabold px-2.5 py-0.5 rounded-lg flex items-center gap-1 uppercase shrink-0">
+                                <MapPin className="w-3 h-3 text-[#1E293B]" />
+                                {salesmanArea}
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-4 gap-2 mb-4 text-center">
+                              <div className="bg-[#00AA13] rounded-2xl p-1.5 text-white">
+                                <span className="block text-[8px] font-bold opacity-80 uppercase tracking-widest leading-none">TC</span>
+                                <span className="text-sm font-extrabold font-mono leading-tight">{tcSum}</span>
+                              </div>
+                              <div className="bg-[#E2E8F0]/40 text-[#0F172A] rounded-2xl p-1.5 border border-[#E2E8F0]">
+                                <span className="block text-[8px] font-extrabold text-[#64748B] uppercase tracking-widest leading-none">CP</span>
+                                <span className="text-sm font-extrabold font-mono leading-tight">{cpSum}</span>
+                              </div>
+                              <div className="bg-[#00AA13] rounded-2xl p-1.5 text-white">
+                                <span className="block text-[8px] font-bold opacity-80 uppercase tracking-widest leading-none">EC</span>
+                                <span className="text-sm font-extrabold font-mono leading-tight">{ecSum}</span>
+                              </div>
+                              <div className="bg-[#E2E8F0]/40 text-[#0F172A] rounded-2xl p-1.5 border border-[#E2E8F0]">
+                                <span className="block text-[8px] font-extrabold text-[#64748B] uppercase tracking-widest leading-none">SKU</span>
+                                <span className="text-sm font-extrabold font-mono leading-tight">{skuSum}</span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2.5 mt-2 mb-4">
+                              <div>
+                                <div className="flex justify-between text-[9px] font-black uppercase text-[#64748B] mb-0.5">
+                                  <span>Pencapaian Call Plan (CP/TC)</span>
+                                  <span className="text-[#00AA13] font-mono font-bold">{cpPct.toFixed(1)}%</span>
+                                </div>
+                                <div className="w-full h-2 bg-[#E2E8F0]/40 rounded-full overflow-hidden">
+                                  <div
+                                    style={{ width: `${Math.min(cpPct, 100)}%` }}
+                                    className="h-full bg-emerald-500 transition-all duration-550"
+                                  />
+                                </div>
+                              </div>
+
+                              <div>
+                                <div className="flex justify-between text-[9px] font-black uppercase text-[#64748B] mb-0.5">
+                                  <span>Tingkat Effective Call (EC/CP)</span>
+                                  <span className="text-[#00AA13] font-mono font-bold">{ecPct.toFixed(1)}%</span>
+                                </div>
+                                <div className="w-full h-2 bg-[#E2E8F0]/40 rounded-full overflow-hidden">
+                                  <div
+                                    style={{ width: `${Math.min(ecPct, 100)}%` }}
+                                    className="h-full bg-[#00AA13] transition-all duration-550"
+                                  />
+                                </div>
+                              </div>
+
+                              <div>
+                                <div className="flex justify-between text-[9px] font-black uppercase text-[#64748B] mb-0.5">
+                                  <span>Pencapaian SKU Fokus ({skuSum}/{targetSku} Sku)</span>
+                                  <span className="text-amber-700 font-mono font-bold">{skuPct.toFixed(1)}%</span>
+                                </div>
+                                <div className="w-full h-2 bg-[#E2E8F0]/40 rounded-full overflow-hidden">
+                                  <div
+                                    style={{ width: `${Math.min(skuPct, 100)}%` }}
+                                    className="h-full bg-amber-500 transition-all duration-550"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="border border-dashed border-[#E2E8F0] rounded-2xl p-3 bg-[#E2E8F0]/10 mb-4 flex justify-between gap-2 text-left">
+                              <div>
+                                <span className="text-[8px] font-extrabold text-[#64748B] flex items-center gap-1 uppercase tracking-wide">
+                                  <Boxes className="w-3 h-3 text-[#64748B]" />
+                                  Fokus Produk
+                                </span>
+                                <span className="text-[10px] font-black text-[#1E293B] block mt-0.5 leading-none">
+                                  CB-YPP, TJ-YPP-PU
+                                </span>
+                              </div>
+                              <div className="text-right border-l border-[#E2E8F0] pl-3 shrink-0">
+                                <span className="text-[8px] font-extrabold text-[#64748B] flex items-center justify-end gap-1 uppercase tracking-wide">
+                                  <DollarSign className="w-3 h-3 text-amber-600" />
+                                  Biaya Operasional
+                                </span>
+                                <span className="text-[10.5px] font-mono font-black text-amber-700 block mt-0.5 leading-none">
+                                  Rp {g.operationalCost.toLocaleString("id-ID")}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="border-t border-dotted border-[#E2E8F0] pt-3 mt-1 flex items-center justify-between text-left">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-7 h-7 rounded-full bg-[#1E293B] text-white flex items-center justify-center font-serif text-[11px] font-extrabold italic">
+                                  {initialChar}
+                                </div>
+                                <div>
+                                  <span className="text-[8px] font-extrabold text-[#64748B] block uppercase tracking-wide leading-none">Total Tagihan</span>
+                                  <span className="text-[11.5px] font-mono font-black text-indigo-800 mt-0.5 block leading-none">
+                                    Rp {(g.billsReceived + (g.billsTransfer || 0) + (g.billsGiro || 0)).toLocaleString("id-ID")}
+                                  </span>
+                                </div>
+                              </div>
+                              <div>
+                                <span className="bg-[#E2E8F0]/60 text-[#0F172A] text-[8.5px] font-black rounded-md px-1.5 py-0.5 font-mono">
+                                  {cntDays} HARI
+                                </span>
+                              </div>
+                            </div>
+                          </motion.div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </>
+              )}
+
+              {kpiTabMode === "goals" && (
+                <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-3xl p-6 shadow-xs animate-in fade-in slide-in-from-bottom-4 space-y-6">
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#E2E8F0] pb-4">
+                    <h3 className="text-base font-black text-[#1E293B] uppercase tracking-wider flex items-center gap-2">
+                      <Target className="w-5 h-5 text-emerald-600" />
+                      Manajemen Target KPI Bulanan (Inti)
+                    </h3>
+                    <div className="w-full sm:w-64">
+                      <label className="block text-[10px] font-bold text-[#64748B] uppercase tracking-wider mb-1">Pilih Bulan Target</label>
+                      <input 
+                        type="month" 
+                        value={goalSelectedMonth}
+                        onChange={(e) => setGoalSelectedMonth(e.target.value)}
+                        className="w-full bg-white border border-[#E2E8F0] px-3 py-2 text-sm font-bold text-[#0F172A] rounded-xl focus:outline-hidden"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b-2 border-[#E2E8F0]">
+                          <th className="py-3 px-2 text-[10px] font-black text-[#1E293B] uppercase">Nama Salesman</th>
+                          <th className="py-3 px-2 text-[10px] font-black text-[#1E293B] uppercase">Target TC</th>
+                          <th className="py-3 px-2 text-[10px] font-black text-[#1E293B] uppercase">Target CP</th>
+                          <th className="py-3 px-2 text-[10px] font-black text-[#1E293B] uppercase">Target EC</th>
+                          <th className="py-3 px-2 text-[10px] font-black text-[#1E293B] uppercase">Target SKU</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {salesmen
+                          .filter(s => s.isActive && s.name.toUpperCase().trim() !== "ARIS" && s.name.toUpperCase().trim() !== "IMAM")
+                          .map(s => {
+                            const goal = salesmanGoals.find(g => g.salesmanId === s.id && g.monthString === goalSelectedMonth) || {
+                              tcTarget: 0,
+                              cpTarget: 0,
+                              ecTarget: 0,
+                              skuTarget: 0
+                            };
+
+                            let actualTc = 0;
+                            let actualCp = 0;
+                            let actualEc = 0;
+                            let actualSku = 0;
+
+                            const presentationDataset = targetDatasetForKpi.filter(r => {
+                              const nameUpper = (r.salesmanName || "").toUpperCase().trim();
+                              return nameUpper !== "ARIS" && nameUpper !== "IMAM";
+                            });
+
+                            presentationDataset.forEach((r: any) => {
+                              if (r.salesmanName.toUpperCase().trim() === s.name.toUpperCase().trim()) {
+                                if (r.date && r.date.startsWith(goalSelectedMonth)) {
+                                  actualTc += Number(r.tc || 0);
+                                  actualCp += Number(r.cp || 0);
+                                  actualEc += Number(r.ec || 0);
+                                  actualSku += Number(r.skuTotal || 0);
+                                }
+                              }
+                            });
+
+                            const tcPct = goal.tcTarget > 0 ? (actualTc / goal.tcTarget) * 100 : 0;
+                            const cpPct = goal.cpTarget > 0 ? (actualCp / goal.cpTarget) * 100 : 0;
+                            const ecPct = goal.ecTarget > 0 ? (actualEc / goal.ecTarget) * 100 : 0;
+                            const skuPct = goal.skuTarget > 0 ? (actualSku / goal.skuTarget) * 100 : 0;
+                            
+                            return (
+                              <tr key={s.id} className="border-b border-[#E2E8F0]/50 hover:bg-[#E2E8F0]/20 transition-colors">
+                                <td className="py-3 px-2 font-bold text-[#0F172A] text-sm uppercase align-top pt-4">{s.name}</td>
+                                
+                                <td className="py-3 px-2 align-top">
+                                  <div className="space-y-2">
+                                    <input 
+                                      type="number" min="0" 
+                                      className="w-full bg-white border border-[#E2E8F0] rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-center focus:outline-hidden focus:border-emerald-400"
+                                      value={goal.tcTarget}
+                                      placeholder="Target"
+                                      onChange={(e) => handleUpdateGoal(s.id, goalSelectedMonth, "tcTarget", parseInt(e.target.value) || 0)}
+                                      onFocus={(e) => e.target.value === "0" && e.target.select()}
+                                    />
+                                    <div className="flex justify-between text-[9px] font-black uppercase text-[#64748B]">
+                                      <span>Aktual: {actualTc}</span>
+                                      <span className={tcPct >= 100 ? "text-[#00AA13]" : tcPct > 0 ? "text-amber-600" : ""}>{tcPct.toFixed(0)}%</span>
+                                    </div>
+                                    <div className="w-full h-1.5 bg-[#E2E8F0]/60 rounded-full overflow-hidden">
+                                      <div style={{ width: `${Math.min(tcPct, 100)}%` }} className={`h-full ${tcPct >= 100 ? "bg-[#00AA13]" : "bg-amber-500"}`} />
+                                    </div>
+                                  </div>
+                                </td>
+
+                                <td className="py-3 px-2 align-top">
+                                  <div className="space-y-2">
+                                    <input 
+                                      type="number" min="0" 
+                                      className="w-full bg-white border border-[#E2E8F0] rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-center focus:outline-hidden focus:border-emerald-400"
+                                      value={goal.cpTarget}
+                                      placeholder="Target"
+                                      onChange={(e) => handleUpdateGoal(s.id, goalSelectedMonth, "cpTarget", parseInt(e.target.value) || 0)}
+                                      onFocus={(e) => e.target.value === "0" && e.target.select()}
+                                    />
+                                    <div className="flex justify-between text-[9px] font-black uppercase text-[#64748B]">
+                                      <span>Aktual: {actualCp}</span>
+                                      <span className={cpPct >= 100 ? "text-[#00AA13]" : cpPct > 0 ? "text-amber-600" : ""}>{cpPct.toFixed(0)}%</span>
+                                    </div>
+                                    <div className="w-full h-1.5 bg-[#E2E8F0]/60 rounded-full overflow-hidden">
+                                      <div style={{ width: `${Math.min(cpPct, 100)}%` }} className={`h-full ${cpPct >= 100 ? "bg-[#00AA13]" : "bg-amber-500"}`} />
+                                    </div>
+                                  </div>
+                                </td>
+
+                                <td className="py-3 px-2 align-top">
+                                  <div className="space-y-2">
+                                    <input 
+                                      type="number" min="0" 
+                                      className="w-full bg-white border border-[#E2E8F0] rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-center focus:outline-hidden focus:border-emerald-400"
+                                      value={goal.ecTarget}
+                                      placeholder="Target"
+                                      onChange={(e) => handleUpdateGoal(s.id, goalSelectedMonth, "ecTarget", parseInt(e.target.value) || 0)}
+                                      onFocus={(e) => e.target.value === "0" && e.target.select()}
+                                    />
+                                    <div className="flex justify-between text-[9px] font-black uppercase text-[#64748B]">
+                                      <span>Aktual: {actualEc}</span>
+                                      <span className={ecPct >= 100 ? "text-[#00AA13]" : ecPct > 0 ? "text-amber-600" : ""}>{ecPct.toFixed(0)}%</span>
+                                    </div>
+                                    <div className="w-full h-1.5 bg-[#E2E8F0]/60 rounded-full overflow-hidden">
+                                      <div style={{ width: `${Math.min(ecPct, 100)}%` }} className={`h-full ${ecPct >= 100 ? "bg-[#00AA13]" : "bg-amber-500"}`} />
+                                    </div>
+                                  </div>
+                                </td>
+
+                                <td className="py-3 px-2 align-top">
+                                  <div className="space-y-2">
+                                    <input 
+                                      type="number" min="0" 
+                                      className="w-full bg-white border border-[#E2E8F0] rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-center focus:outline-hidden focus:border-emerald-400"
+                                      value={goal.skuTarget}
+                                      placeholder="Target"
+                                      onChange={(e) => handleUpdateGoal(s.id, goalSelectedMonth, "skuTarget", parseInt(e.target.value) || 0)}
+                                      onFocus={(e) => e.target.value === "0" && e.target.select()}
+                                    />
+                                    <div className="flex justify-between text-[9px] font-black uppercase text-[#64748B]">
+                                      <span>Aktual: {actualSku}</span>
+                                      <span className={skuPct >= 100 ? "text-[#00AA13]" : skuPct > 0 ? "text-amber-600" : ""}>{skuPct.toFixed(0)}%</span>
+                                    </div>
+                                    <div className="w-full h-1.5 bg-[#E2E8F0]/60 rounded-full overflow-hidden">
+                                      <div style={{ width: `${Math.min(skuPct, 100)}%` }} className={`h-full ${skuPct >= 100 ? "bg-[#00AA13]" : "bg-amber-500"}`} />
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        {salesmen.filter(s => s.isActive && s.name.toUpperCase().trim() !== "ARIS" && s.name.toUpperCase().trim() !== "IMAM").length === 0 && (
+                          <tr><td colSpan={5} className="py-4 text-center text-xs text-[#64748B]">Belum ada salesman aktif didatabase.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -5310,31 +6228,31 @@ function createCustomerProfilingForm() {
               </div>
 
               {/* Informational Integration Guide Card */}
-              <div className="bg-[#FAF9F6] border border-[#E5E5DF] rounded-3xl p-6 shadow-xs relative">
+              <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-3xl p-6 shadow-xs relative">
                 <div className="absolute top-4 right-4 bg-rose-500/10 text-rose-800 text-[10px] font-black uppercase px-2.5 py-1 rounded-md">
                   Alur Kerja Integrasi
                 </div>
-                <h3 className="text-sm font-bold text-[#4A4A3C] uppercase tracking-wider flex items-center gap-2 mb-3">
+                <h3 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider flex items-center gap-2 mb-3">
                   <Info className="w-4 h-4 text-rose-600" />
                   Bagaimana Cara Portal Menarik Data Laporan Sales?
                 </h3>
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-[11px] leading-relaxed text-[#5A5A40] mt-4">
-                  <div className="bg-[#FAF9F6] border border-[#E5E5DF]/60 p-4 rounded-2xl flex flex-col gap-1">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-[11px] leading-relaxed text-[#1E293B] mt-4">
+                  <div className="bg-[#F8FAFC] border border-[#E2E8F0]/60 p-4 rounded-2xl flex flex-col gap-1">
                     <span className="text-xs font-black text-rose-800 uppercase">1. Pengiriman Aksi getReports</span>
-                    <p className="text-[#8C8C70] mt-1">
+                    <p className="text-[#64748B] mt-1">
                       Menekan tombol "Tarik Data" memicu request POST bertransaksi ke URL Apps Script Anda dengan format instruksi <code className="bg-rose-50/80 px-1 py-0.5 rounded font-mono font-bold text-rose-700">action: "getReports"</code>.
                     </p>
                   </div>
-                  <div className="bg-[#FAF9F6] border border-[#E5E5DF]/60 p-4 rounded-2xl flex flex-col gap-1">
+                  <div className="bg-[#F8FAFC] border border-[#E2E8F0]/60 p-4 rounded-2xl flex flex-col gap-1">
                     <span className="text-xs font-black text-rose-800 uppercase">2. Pembacaan Baris Spreadsheet</span>
-                    <p className="text-[#8C8C70] mt-1">
+                    <p className="text-[#64748B] mt-1">
                       Apps Script diprogram membaca baris aktif pada tab lembar sebar bernilai <code className="bg-gray-100 px-1 py-0.5 rounded font-mono text-gray-800">"Laporan KPI Sales"</code>, mengonversi sel tanggal, TC, CP, EC, SKU, dan mengembalikan array data terstruktur.
                     </p>
                   </div>
-                  <div className="bg-[#FAF9F6] border border-[#E5E5DF]/60 p-4 rounded-2xl flex flex-col gap-1">
+                  <div className="bg-[#F8FAFC] border border-[#E2E8F0]/60 p-4 rounded-2xl flex flex-col gap-1">
                     <span className="text-xs font-black text-rose-800 uppercase">3. Parsing & Rangkuman Otomatis</span>
-                    <p className="text-[#8C8C70] mt-1">
+                    <p className="text-[#64748B] mt-1">
                       Data ditarik, dikomparasi secara real-time berdasarkan total hari lapor, lalu persentase Call Plan, Effective Call Rate, dan Target Sku dihitung presisi untuk mewarnai indikator KPI.
                     </p>
                   </div>
@@ -5342,36 +6260,36 @@ function createCustomerProfilingForm() {
               </div>
 
               {/* Kartu Rumus KPI */}
-              <div className="bg-[#FAF9F6] border border-[#E5E5DF] rounded-3xl p-6 shadow-xs relative">
-                <h3 className="text-sm font-bold text-[#4A4A3C] uppercase tracking-wider flex items-center gap-2 mb-3">
+              <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-3xl p-6 shadow-xs relative">
+                <h3 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider flex items-center gap-2 mb-3">
                   <TrendingUp className="w-4 h-4 text-emerald-600" />
                   Kartu Rumus KPI
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-[11px] leading-relaxed text-[#5A5A40] mt-4">
-                  <div className="bg-white border border-[#E5E5DF]/60 p-4 rounded-2xl">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-[11px] leading-relaxed text-[#1E293B] mt-4">
+                  <div className="bg-white border border-[#E2E8F0]/60 p-4 rounded-2xl">
                     <span className="font-extrabold text-emerald-800 uppercase block mb-1">Pencapaian Call Plan</span>
-                    <p className="text-[#8C8C70] font-mono">CP / TC x 100%</p>
+                    <p className="text-[#64748B] font-mono">CP / TC x 100%</p>
                   </div>
-                  <div className="bg-white border border-[#E5E5DF]/60 p-4 rounded-2xl">
+                  <div className="bg-white border border-[#E2E8F0]/60 p-4 rounded-2xl">
                     <span className="font-extrabold text-rose-800 uppercase block mb-1">Effective Call</span>
-                    <p className="text-[#8C8C70] font-mono">EC / CP x 100%</p>
+                    <p className="text-[#64748B] font-mono">EC / CP x 100%</p>
                   </div>
-                  <div className="bg-white border border-[#E5E5DF]/60 p-4 rounded-2xl">
+                  <div className="bg-white border border-[#E2E8F0]/60 p-4 rounded-2xl">
                     <span className="font-extrabold text-amber-800 uppercase block mb-1">Pencapaian SKU Fokus</span>
-                    <p className="text-[#8C8C70] font-mono">SKU Terjual / Target SKU x 100%</p>
+                    <p className="text-[#64748B] font-mono">SKU Terjual / Target SKU x 100%</p>
                   </div>
                 </div>
               </div>
 
               {/* Salesman Focus Tabs */}
-              <div className="flex flex-wrap bg-[#E5E5DF]/35 p-1 rounded-2xl gap-1 w-full relative mb-6">
+              <div className="flex flex-wrap bg-[#E2E8F0]/35 p-1 rounded-2xl gap-1 w-full relative mb-6">
                 <button
                   type="button"
                   onClick={() => setKpiSalesmanTab("all")}
                   className={`flex-grow sm:flex-grow-0 px-6 py-2.5 rounded-xl text-xs uppercase font-extrabold cursor-pointer transition flex justify-center items-center gap-2 ${
                     kpiSalesmanTab === "all" 
-                      ? "bg-[#5A5A40] text-white shadow-xs" 
-                      : "text-[#5A5A40] hover:bg-[#E5E5DF]/50 font-bold"
+                      ? "bg-[#1E293B] text-white shadow-xs" 
+                      : "text-[#1E293B] hover:bg-[#E2E8F0]/50 font-bold"
                   }`}
                 >
                   <Users className="w-4 h-4" />
@@ -5405,14 +6323,14 @@ function createCustomerProfilingForm() {
 
               {kpiSalesmanTab === "all" && (
                 <>
-                  <div className="flex bg-[#E5E5DF]/35 p-1 rounded-2xl gap-1 w-full sm:w-auto relative mb-6">
+                  <div className="flex bg-[#E2E8F0]/35 p-1 rounded-2xl gap-1 w-full sm:w-auto relative mb-6">
                     <button
                       type="button"
                       onClick={() => setKpiTabMode("dashboard")}
                       className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-xs uppercase font-black cursor-pointer transition flex justify-center items-center gap-2 ${
                         kpiTabMode === "dashboard" 
-                          ? "bg-[#5A5A40] text-white shadow-xs" 
-                          : "text-[#5A5A40] hover:bg-[#E5E5DF]/50"
+                          ? "bg-[#1E293B] text-white shadow-xs" 
+                          : "text-[#1E293B] hover:bg-[#E2E8F0]/50"
                       }`}
                     >
                       <TrendingUp className="w-4 h-4" />
@@ -5424,7 +6342,7 @@ function createCustomerProfilingForm() {
                       className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-xs uppercase font-black cursor-pointer transition flex justify-center items-center gap-2 ${
                         kpiTabMode === "goals" 
                           ? "bg-amber-600 text-white shadow-xs" 
-                          : "text-[#5A5A40] hover:bg-[#E5E5DF]/50"
+                          : "text-[#1E293B] hover:bg-[#E2E8F0]/50"
                       }`}
                     >
                       <Target className="w-4 h-4" />
@@ -5435,19 +6353,19 @@ function createCustomerProfilingForm() {
                   {kpiTabMode === "dashboard" && (
                     <>
               {/* Filtering & Source Status Controls */}
-              <div className="bg-[#FAF9F6] border border-[#E5E5DF] rounded-3xl p-6 space-y-4">
+              <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-3xl p-6 space-y-4">
                 <div className="flex flex-wrap items-end justify-between gap-4">
                   {/* Col 1: Salesman and Timeframe Selection */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full lg:w-auto grow">
                     {/* Dropdown Salesman */}
                     <div>
-                      <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+                      <label className="block text-[10px] font-bold text-[#64748B] uppercase tracking-wider mb-1">
                         Filter Nama Salesman
                       </label>
                       <select
                         value={kpiSalesFilter}
                         onChange={(e) => setKpiSalesFilter(e.target.value)}
-                        className="w-full bg-[#FAF9F6] border border-[#E5E5DF] text-[#4A4A3C] font-extrabold text-xs uppercase px-3 py-2.5 rounded-xl focus:outline-hidden cursor-pointer"
+                        className="w-full bg-[#F8FAFC] border border-[#E2E8F0] text-[#0F172A] font-extrabold text-xs uppercase px-3 py-2.5 rounded-xl focus:outline-hidden cursor-pointer"
                       >
                         <option value="ALL">Semua Salesman</option>
                         {Array.from(new Set(
@@ -5460,10 +6378,10 @@ function createCustomerProfilingForm() {
 
                     {/* Timeframe Selector Pills */}
                     <div>
-                      <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+                      <label className="block text-[10px] font-bold text-[#64748B] uppercase tracking-wider mb-1">
                         Rentang Analisis KPI
                       </label>
-                      <div className="flex border border-[#E5E5DF] rounded-xl overflow-hidden bg-white max-w-sm">
+                      <div className="flex border border-[#E2E8F0] rounded-xl overflow-hidden bg-white max-w-sm">
                         {(["all", "daily", "weekly", "monthly"] as const).map((mode) => {
                           const labels = { all: "Semua", daily: "Hari", weekly: "Minggu", monthly: "Bulan" };
                           const isActive = kpiTimeFrame === mode;
@@ -5479,8 +6397,8 @@ function createCustomerProfilingForm() {
                               }}
                               className={`flex-1 py-2 text-[11px] font-black uppercase text-center transition-all cursor-pointer ${
                                 isActive
-                                  ? "bg-[#5A5A40] text-[#FAF9F6] font-bold"
-                                  : "text-[#8C8C70] hover:bg-[#E5E5DF]/20 hover:text-[#4A4A3C]"
+                                  ? "bg-[#1E293B] text-[#F8FAFC] font-bold"
+                                  : "text-[#64748B] hover:bg-[#E2E8F0]/20 hover:text-[#0F172A]"
                               }`}
                             >
                               {labels[mode]}
@@ -5494,10 +6412,10 @@ function createCustomerProfilingForm() {
                     <div>
                       {kpiTimeFrame === "all" && (
                         <div>
-                          <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+                          <label className="block text-[10px] font-bold text-[#64748B] uppercase tracking-wider mb-1">
                             Data Terakumulasi
                           </label>
-                          <div className="text-xs font-bold text-[#5A5A40] bg-[#E5E5DF]/20 px-3 py-2.5 rounded-xl border border-[#E5E5DF]/50">
+                          <div className="text-xs font-bold text-[#1E293B] bg-[#E2E8F0]/20 px-3 py-2.5 rounded-xl border border-[#E2E8F0]/50">
                             Menghitung Semua Hari Lapor
                           </div>
                         </div>
@@ -5517,7 +6435,7 @@ function createCustomerProfilingForm() {
                                   const val = e.target.value;
                                   setKpiSelectedDate(val || "ALL");
                                 }}
-                                className="grow bg-[#FAF9F6] border border-rose-200 text-rose-900 font-black text-xs px-3 py-2 rounded-xl focus:outline-hidden cursor-pointer h-10"
+                                className="grow bg-[#F8FAFC] border border-rose-200 text-rose-900 font-black text-xs px-3 py-2 rounded-xl focus:outline-hidden cursor-pointer h-10"
                               />
                               {kpiSelectedDate !== "ALL" && (
                                 <button
@@ -5569,7 +6487,7 @@ function createCustomerProfilingForm() {
                             <select
                               value={kpiSelectedWeek}
                               onChange={(e) => setKpiSelectedWeek(e.target.value)}
-                              className="w-full bg-[#FAF9F6] border border-rose-200 text-rose-900 font-extrabold text-xs uppercase px-3 py-2.5 rounded-xl focus:outline-hidden cursor-pointer"
+                              className="w-full bg-[#F8FAFC] border border-rose-200 text-rose-900 font-extrabold text-xs uppercase px-3 py-2.5 rounded-xl focus:outline-hidden cursor-pointer"
                             >
                               <option value="ALL">Semua Minggu ({sortedWeeks.length} Periode)</option>
                               {sortedWeeks.map(([wkKey, wkLabel]) => (
@@ -5607,7 +6525,7 @@ function createCustomerProfilingForm() {
                             <select
                               value={kpiSelectedMonth}
                               onChange={(e) => setKpiSelectedMonth(e.target.value)}
-                              className="w-full bg-[#FAF9F6] border border-rose-200 text-rose-900 font-extrabold text-xs uppercase px-3 py-2.5 rounded-xl focus:outline-hidden cursor-pointer"
+                              className="w-full bg-[#F8FAFC] border border-rose-200 text-rose-900 font-extrabold text-xs uppercase px-3 py-2.5 rounded-xl focus:outline-hidden cursor-pointer"
                             >
                               <option value="ALL">Semua Bulan ({sortedMonths.length} Bulan)</option>
                               {sortedMonths.map(([mKey, mLabel]) => (
@@ -5622,16 +6540,16 @@ function createCustomerProfilingForm() {
 
                   {/* Source status indicator */}
                   <div className="shrink-0">
-                    <div className="bg-white border border-[#E5E5DF] p-3 rounded-2xl shadow-sm">
-                      <span className="block text-[9px] font-extrabold text-[#8C8C70] uppercase mb-1.5 text-left">Sumber Data KPI</span>
-                      <div className="flex bg-[#E5E5DF]/35 p-1 rounded-xl gap-1">
+                    <div className="bg-white border border-[#E2E8F0] p-3 rounded-2xl shadow-sm">
+                      <span className="block text-[9px] font-extrabold text-[#64748B] uppercase mb-1.5 text-left">Sumber Data KPI</span>
+                      <div className="flex bg-[#E2E8F0]/35 p-1 rounded-xl gap-1">
                         <button
                           type="button"
                           onClick={() => setKpiDataSource("sheets")}
                           className={`px-3 py-1.5 rounded-lg text-[10px] uppercase font-black cursor-pointer transition flex items-center gap-1.5 ${
                             kpiDataSource === "sheets" 
                               ? "bg-rose-600 text-white shadow-xs" 
-                              : "text-[#5A5A40] hover:bg-[#E5E5DF]/50"
+                              : "text-[#1E293B] hover:bg-[#E2E8F0]/50"
                           }`}
                         >
                           <span className={`w-1.5 h-1.5 rounded-full ${fetchedReports.length > 0 ? "bg-emerald-300 animate-pulse" : "bg-orange-400"}`} />
@@ -5642,8 +6560,8 @@ function createCustomerProfilingForm() {
                           onClick={() => setKpiDataSource("local")}
                           className={`px-3 py-1.5 rounded-lg text-[10px] uppercase font-black cursor-pointer transition flex items-center gap-1.5 ${
                             kpiDataSource === "local" 
-                              ? "bg-[#5A5A40] text-white shadow-xs" 
-                              : "text-[#5A5A40] hover:bg-[#E5E5DF]/50"
+                              ? "bg-[#1E293B] text-white shadow-xs" 
+                              : "text-[#1E293B] hover:bg-[#E2E8F0]/50"
                           }`}
                         >
                           <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
@@ -5654,8 +6572,8 @@ function createCustomerProfilingForm() {
                   </div>
                 </div>
 
-                <div className="border-t border-dashed border-[#E5E5DF] pt-3 flex flex-wrap items-center justify-between gap-2">
-                  <div className="text-[10px] font-extrabold text-[#8C8C70] uppercase flex items-center gap-1.5">
+                <div className="border-t border-dashed border-[#E2E8F0] pt-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-[10px] font-extrabold text-[#64748B] uppercase flex items-center gap-1.5">
                     <Info className="w-3.5 h-3.5 text-rose-500" />
                     <span>
                       Mode: {kpiTimeFrame === "all" && "Akumulasi Semua Data"}
@@ -5664,7 +6582,7 @@ function createCustomerProfilingForm() {
                       {kpiTimeFrame === "monthly" && "Kompilasi Performance Bulanan"}
                     </span>
                   </div>
-                  <div className="text-[9px] font-mono text-[#8C8C70]">
+                  <div className="text-[9px] font-mono text-[#64748B]">
                     DKR Audit Engine v1.5.0
                   </div>
                 </div>
@@ -5791,8 +6709,8 @@ function createCustomerProfilingForm() {
                         <div className="text-rose-900 font-extrabold text-sm md:text-base">
                           Belum Ada Data Laporan Real-time di Google Sheets
                         </div>
-                        <p className="text-xs text-[#8C8C70] max-w-lg mx-auto leading-relaxed">
-                          Sistem mendeteksi lembar sebar Google Sheets Anda masih kosong atau data belum ditarik. Silakan masukkan URL Apps Script di tab <strong className="text-[#5A5A40]">Google Sheets Linker</strong> kemudian tekan tombol <strong className="text-rose-700">Tarik Data Real-time dari Google Sheets</strong> di bagian atas halaman ini untuk sinkronisasi.
+                        <p className="text-xs text-[#64748B] max-w-lg mx-auto leading-relaxed">
+                          Sistem mendeteksi lembar sebar Google Sheets Anda masih kosong atau data belum ditarik. Silakan masukkan URL Apps Script di tab <strong className="text-[#1E293B]">Google Sheets Linker</strong> kemudian tekan tombol <strong className="text-rose-700">Tarik Data Real-time dari Google Sheets</strong> di bagian atas halaman ini untuk sinkronisasi.
                         </p>
                         <div className="flex flex-wrap justify-center gap-3">
                           <button
@@ -5806,7 +6724,7 @@ function createCustomerProfilingForm() {
                           <button
                             type="button"
                             onClick={() => setKpiDataSource("local")}
-                            className="bg-[#5A5A40] hover:bg-[#4A4A3C] text-white font-extrabold text-[11px] uppercase tracking-wider px-5 py-2.5 rounded-xl transition cursor-pointer"
+                            className="bg-[#1E293B] hover:bg-[#0F172A] text-white font-extrabold text-[11px] uppercase tracking-wider px-5 py-2.5 rounded-xl transition cursor-pointer"
                           >
                             Gunakan Data Backup Lokal
                           </button>
@@ -5817,7 +6735,7 @@ function createCustomerProfilingForm() {
 
                   if (groupedList.length === 0) {
                     return (
-                      <div className="col-span-full text-center p-12 bg-[#FAF9F6] border border-[#E5E5DF] rounded-3xl text-sm text-[#8C8C70] font-bold">
+                      <div className="col-span-full text-center p-12 bg-[#F8FAFC] border border-[#E2E8F0] rounded-3xl text-sm text-[#64748B] font-bold">
                         Tidak ada data pencapaian KPI yang cocok dengan filter parameter terpilih.
                       </div>
                     );
@@ -5868,9 +6786,9 @@ function createCustomerProfilingForm() {
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: idx * 0.05 }}
-                        className="w-full bg-[#FAF9F6] border-t-4 border-rose-600 rounded-3xl p-5 border border-[#E5E5DF] shadow-md hover:shadow-xl transition-all relative flex flex-col justify-between text-left"
+                        className="w-full bg-[#F8FAFC] border-t-4 border-rose-600 rounded-3xl p-5 border border-[#E2E8F0] shadow-md hover:shadow-xl transition-all relative flex flex-col justify-between text-left"
                       >
-                        <div className="flex items-center justify-between text-[#8C8C70] text-[10px] font-black uppercase tracking-wider mb-2">
+                        <div className="flex items-center justify-between text-[#64748B] text-[10px] font-black uppercase tracking-wider mb-2">
                           <span className="flex items-center gap-1 text-[9px] truncate max-w-[70%]">
                             {headerIcon}
                             <span className="truncate">{headerPeriodText}</span>
@@ -5886,12 +6804,12 @@ function createCustomerProfilingForm() {
 
                         <div className="flex items-start justify-between mt-1 mb-4">
                           <div>
-                            <h4 className="text-xl font-serif italic font-black tracking-tight text-[#4A4A3C]">
+                            <h4 className="text-xl font-serif italic font-black tracking-tight text-[#0F172A]">
                               {g.salesmanName}
                             </h4>
                           </div>
-                          <div className="bg-[#5A5A40]/10 text-[#5A5A40] text-[9.5px] font-extrabold px-2 py-0.5 rounded-lg flex items-center gap-1 uppercase shrink-0">
-                            <MapPin className="w-3 h-3 text-[#5A5A40]" />
+                          <div className="bg-[#1E293B]/10 text-[#1E293B] text-[9.5px] font-extrabold px-2 py-0.5 rounded-lg flex items-center gap-1 uppercase shrink-0">
+                            <MapPin className="w-3 h-3 text-[#1E293B]" />
                             {salesmanArea}
                           </div>
                         </div>
@@ -5901,27 +6819,27 @@ function createCustomerProfilingForm() {
                             <span className="block text-[8px] font-bold opacity-80 uppercase tracking-widest leading-none">TC</span>
                             <span className="text-sm font-extrabold font-mono leading-tight">{tcSum}</span>
                           </div>
-                          <div className="bg-[#E5E5DF]/40 text-[#4A4A3C] rounded-2xl p-1.5 border border-[#E5E5DF]">
-                            <span className="block text-[8px] font-extrabold text-[#8C8C70] uppercase tracking-widest leading-none">CP</span>
+                          <div className="bg-[#E2E8F0]/40 text-[#0F172A] rounded-2xl p-1.5 border border-[#E2E8F0]">
+                            <span className="block text-[8px] font-extrabold text-[#64748B] uppercase tracking-widest leading-none">CP</span>
                             <span className="text-sm font-extrabold font-mono leading-tight">{cpSum}</span>
                           </div>
                           <div className="bg-rose-600 rounded-2xl p-1.5 text-white">
                             <span className="block text-[8px] font-bold opacity-80 uppercase tracking-widest leading-none">EC</span>
                             <span className="text-sm font-extrabold font-mono leading-tight">{ecSum}</span>
                           </div>
-                          <div className="bg-[#E5E5DF]/40 text-[#4A4A3C] rounded-2xl p-1.5 border border-[#E5E5DF]">
-                            <span className="block text-[8px] font-extrabold text-[#8C8C70] uppercase tracking-widest leading-none">SKU</span>
+                          <div className="bg-[#E2E8F0]/40 text-[#0F172A] rounded-2xl p-1.5 border border-[#E2E8F0]">
+                            <span className="block text-[8px] font-extrabold text-[#64748B] uppercase tracking-widest leading-none">SKU</span>
                             <span className="text-sm font-extrabold font-mono leading-tight">{skuSum}</span>
                           </div>
                         </div>
 
                         <div className="space-y-2.5 mt-2 mb-4">
                           <div>
-                            <div className="flex justify-between text-[9px] font-black uppercase text-[#8C8C70] mb-0.5">
+                            <div className="flex justify-between text-[9px] font-black uppercase text-[#64748B] mb-0.5">
                               <span>Pencapaian Call Plan (CP/TC)</span>
                               <span className="text-emerald-700 font-mono font-bold">{cpPct.toFixed(1)}%</span>
                             </div>
-                            <div className="w-full h-2 bg-[#E5E5DF]/40 rounded-full overflow-hidden">
+                            <div className="w-full h-2 bg-[#E2E8F0]/40 rounded-full overflow-hidden">
                               <div
                                 style={{ width: `${Math.min(cpPct, 100)}%` }}
                                 className="h-full bg-emerald-500 transition-all duration-550"
@@ -5930,11 +6848,11 @@ function createCustomerProfilingForm() {
                           </div>
 
                           <div>
-                            <div className="flex justify-between text-[9px] font-black uppercase text-[#8C8C70] mb-0.5">
+                            <div className="flex justify-between text-[9px] font-black uppercase text-[#64748B] mb-0.5">
                               <span>Tingkat Effective Call (EC/CP)</span>
                               <span className="text-rose-700 font-mono font-bold">{ecPct.toFixed(1)}%</span>
                             </div>
-                            <div className="w-full h-2 bg-[#E5E5DF]/40 rounded-full overflow-hidden">
+                            <div className="w-full h-2 bg-[#E2E8F0]/40 rounded-full overflow-hidden">
                               <div
                                 style={{ width: `${Math.min(ecPct, 100)}%` }}
                                 className="h-full bg-rose-500 transition-all duration-550"
@@ -5943,11 +6861,11 @@ function createCustomerProfilingForm() {
                           </div>
 
                           <div>
-                            <div className="flex justify-between text-[9px] font-black uppercase text-[#8C8C70] mb-0.5">
+                            <div className="flex justify-between text-[9px] font-black uppercase text-[#64748B] mb-0.5">
                               <span>Pencapaian SKU Fokus ({skuSum}/{targetSku} Sku)</span>
                               <span className="text-amber-700 font-mono font-bold">{skuPct.toFixed(1)}%</span>
                             </div>
-                            <div className="w-full h-2 bg-[#E5E5DF]/40 rounded-full overflow-hidden">
+                            <div className="w-full h-2 bg-[#E2E8F0]/40 rounded-full overflow-hidden">
                               <div
                                 style={{ width: `${Math.min(skuPct, 100)}%` }}
                                 className="h-full bg-amber-500 transition-all duration-550"
@@ -5956,18 +6874,18 @@ function createCustomerProfilingForm() {
                           </div>
                         </div>
 
-                        <div className="border border-dashed border-[#E5E5DF] rounded-2xl p-3 bg-[#E5E5DF]/10 mb-4 flex justify-between gap-2 text-left">
+                        <div className="border border-dashed border-[#E2E8F0] rounded-2xl p-3 bg-[#E2E8F0]/10 mb-4 flex justify-between gap-2 text-left">
                           <div>
-                            <span className="text-[8px] font-extrabold text-[#8C8C70] flex items-center gap-1 uppercase tracking-wide">
-                              <Boxes className="w-3 h-3 text-[#8C8C70]" />
+                            <span className="text-[8px] font-extrabold text-[#64748B] flex items-center gap-1 uppercase tracking-wide">
+                              <Boxes className="w-3 h-3 text-[#64748B]" />
                               Fokus Produk
                             </span>
-                            <span className="text-[10px] font-black text-[#5A5A40] block mt-0.5 leading-none">
+                            <span className="text-[10px] font-black text-[#1E293B] block mt-0.5 leading-none">
                               CB-YPP, TJ-YPP-PU
                             </span>
                           </div>
-                          <div className="text-right border-l border-[#E5E5DF] pl-3 shrink-0">
-                            <span className="text-[8px] font-extrabold text-[#8C8C70] flex items-center justify-end gap-1 uppercase tracking-wide">
+                          <div className="text-right border-l border-[#E2E8F0] pl-3 shrink-0">
+                            <span className="text-[8px] font-extrabold text-[#64748B] flex items-center justify-end gap-1 uppercase tracking-wide">
                               <DollarSign className="w-3 h-3 text-amber-600" />
                               Biaya Operasional
                             </span>
@@ -5977,20 +6895,20 @@ function createCustomerProfilingForm() {
                           </div>
                         </div>
 
-                        <div className="border-t border-dotted border-[#E5E5DF] pt-3 mt-1 flex items-center justify-between text-left">
+                        <div className="border-t border-dotted border-[#E2E8F0] pt-3 mt-1 flex items-center justify-between text-left">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-7 h-7 rounded-full bg-[#5A5A40] text-white flex items-center justify-center font-serif text-[11px] font-extrabold italic">
+                            <div className="w-7 h-7 rounded-full bg-[#1E293B] text-white flex items-center justify-center font-serif text-[11px] font-extrabold italic">
                               {initialChar}
                             </div>
                             <div>
-                              <span className="text-[8px] font-extrabold text-[#8C8C70] block uppercase tracking-wide leading-none">Total Tagihan Termasuk Transfer & Giro</span>
+                              <span className="text-[8px] font-extrabold text-[#64748B] block uppercase tracking-wide leading-none">Total Tagihan Termasuk Transfer & Giro</span>
                               <span className="text-[11.5px] font-mono font-black text-indigo-800 mt-0.5 block leading-none">
                                 Rp {(g.billsReceived + (g.billsTransfer || 0) + (g.billsGiro || 0)).toLocaleString("id-ID")}
                               </span>
                             </div>
                           </div>
                           <div>
-                            <span className="bg-[#E5E5DF]/60 text-[#4A4A3C] text-[8.5px] font-black rounded-md px-1.5 py-0.5 font-mono">
+                            <span className="bg-[#E2E8F0]/60 text-[#0F172A] text-[8.5px] font-black rounded-md px-1.5 py-0.5 font-mono">
                               {cntDays} HARI
                             </span>
                           </div>
@@ -6004,19 +6922,19 @@ function createCustomerProfilingForm() {
               )}
 
               {kpiTabMode === "goals" && (
-                <div className="bg-[#FAF9F6] border border-[#E5E5DF] rounded-3xl p-6 shadow-xs animate-in fade-in slide-in-from-bottom-4 space-y-6">
-                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#E5E5DF] pb-4">
-                    <h3 className="text-base font-black text-[#5A5A40] uppercase tracking-wider flex items-center gap-2">
+                <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-3xl p-6 shadow-xs animate-in fade-in slide-in-from-bottom-4 space-y-6">
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#E2E8F0] pb-4">
+                    <h3 className="text-base font-black text-[#1E293B] uppercase tracking-wider flex items-center gap-2">
                       <Target className="w-5 h-5 text-amber-600" />
                       Manajemen Target KPI Bulanan
                     </h3>
                     <div className="w-full sm:w-64">
-                      <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1">Pilih Bulan Target</label>
+                      <label className="block text-[10px] font-bold text-[#64748B] uppercase tracking-wider mb-1">Pilih Bulan Target</label>
                       <input 
                         type="month" 
                         value={goalSelectedMonth}
                         onChange={(e) => setGoalSelectedMonth(e.target.value)}
-                        className="w-full bg-white border border-[#E5E5DF] px-3 py-2 text-sm font-bold text-[#4A4A3C] rounded-xl focus:outline-hidden focus:border-amber-400"
+                        className="w-full bg-white border border-[#E2E8F0] px-3 py-2 text-sm font-bold text-[#0F172A] rounded-xl focus:outline-hidden focus:border-amber-400"
                       />
                     </div>
                   </div>
@@ -6024,12 +6942,12 @@ function createCustomerProfilingForm() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                       <thead>
-                        <tr className="border-b-2 border-[#E5E5DF]">
-                          <th className="py-3 px-2 text-[10px] font-black text-[#5A5A40] uppercase">Nama Salesman</th>
-                          <th className="py-3 px-2 text-[10px] font-black text-[#5A5A40] uppercase">Target TC</th>
-                          <th className="py-3 px-2 text-[10px] font-black text-[#5A5A40] uppercase">Target CP</th>
-                          <th className="py-3 px-2 text-[10px] font-black text-[#5A5A40] uppercase">Target EC</th>
-                          <th className="py-3 px-2 text-[10px] font-black text-[#5A5A40] uppercase">Target SKU</th>
+                        <tr className="border-b-2 border-[#E2E8F0]">
+                          <th className="py-3 px-2 text-[10px] font-black text-[#1E293B] uppercase">Nama Salesman</th>
+                          <th className="py-3 px-2 text-[10px] font-black text-[#1E293B] uppercase">Target TC</th>
+                          <th className="py-3 px-2 text-[10px] font-black text-[#1E293B] uppercase">Target CP</th>
+                          <th className="py-3 px-2 text-[10px] font-black text-[#1E293B] uppercase">Target EC</th>
+                          <th className="py-3 px-2 text-[10px] font-black text-[#1E293B] uppercase">Target SKU</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -6063,24 +6981,24 @@ function createCustomerProfilingForm() {
                           const skuPct = goal.skuTarget > 0 ? (actualSku / goal.skuTarget) * 100 : 0;
                           
                           return (
-                            <tr key={s.id} className="border-b border-[#E5E5DF]/50 hover:bg-[#E5E5DF]/20 transition-colors">
-                              <td className="py-3 px-2 font-bold text-[#4A4A3C] text-sm uppercase align-top pt-4">{s.name}</td>
+                            <tr key={s.id} className="border-b border-[#E2E8F0]/50 hover:bg-[#E2E8F0]/20 transition-colors">
+                              <td className="py-3 px-2 font-bold text-[#0F172A] text-sm uppercase align-top pt-4">{s.name}</td>
                               
                               <td className="py-3 px-2 align-top">
                                 <div className="space-y-2">
                                   <input 
                                     type="number" min="0" 
-                                    className="w-full bg-white border border-[#E5E5DF] rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-center focus:outline-hidden focus:border-amber-400"
+                                    className="w-full bg-white border border-[#E2E8F0] rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-center focus:outline-hidden focus:border-amber-400"
                                     value={goal.tcTarget}
                                     placeholder="Target"
                                     onChange={(e) => handleUpdateGoal(s.id, goalSelectedMonth, "tcTarget", parseInt(e.target.value) || 0)}
                                     onFocus={(e) => e.target.value === "0" && e.target.select()}
                                   />
-                                  <div className="flex justify-between text-[9px] font-black uppercase text-[#8C8C70]">
+                                  <div className="flex justify-between text-[9px] font-black uppercase text-[#64748B]">
                                     <span>Aktual: {actualTc}</span>
                                     <span className={tcPct >= 100 ? "text-emerald-600" : tcPct > 0 ? "text-amber-600" : ""}>{tcPct.toFixed(0)}%</span>
                                   </div>
-                                  <div className="w-full h-1.5 bg-[#E5E5DF]/60 rounded-full overflow-hidden">
+                                  <div className="w-full h-1.5 bg-[#E2E8F0]/60 rounded-full overflow-hidden">
                                     <div style={{ width: `${Math.min(tcPct, 100)}%` }} className={`h-full ${tcPct >= 100 ? "bg-emerald-500" : "bg-amber-500"}`} />
                                   </div>
                                 </div>
@@ -6090,17 +7008,17 @@ function createCustomerProfilingForm() {
                                 <div className="space-y-2">
                                   <input 
                                     type="number" min="0" 
-                                    className="w-full bg-white border border-[#E5E5DF] rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-center focus:outline-hidden focus:border-amber-400"
+                                    className="w-full bg-white border border-[#E2E8F0] rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-center focus:outline-hidden focus:border-amber-400"
                                     value={goal.cpTarget}
                                     placeholder="Target"
                                     onChange={(e) => handleUpdateGoal(s.id, goalSelectedMonth, "cpTarget", parseInt(e.target.value) || 0)}
                                     onFocus={(e) => e.target.value === "0" && e.target.select()}
                                   />
-                                  <div className="flex justify-between text-[9px] font-black uppercase text-[#8C8C70]">
+                                  <div className="flex justify-between text-[9px] font-black uppercase text-[#64748B]">
                                     <span>Aktual: {actualCp}</span>
                                     <span className={cpPct >= 100 ? "text-emerald-600" : cpPct > 0 ? "text-amber-600" : ""}>{cpPct.toFixed(0)}%</span>
                                   </div>
-                                  <div className="w-full h-1.5 bg-[#E5E5DF]/60 rounded-full overflow-hidden">
+                                  <div className="w-full h-1.5 bg-[#E2E8F0]/60 rounded-full overflow-hidden">
                                     <div style={{ width: `${Math.min(cpPct, 100)}%` }} className={`h-full ${cpPct >= 100 ? "bg-emerald-500" : "bg-amber-500"}`} />
                                   </div>
                                 </div>
@@ -6110,17 +7028,17 @@ function createCustomerProfilingForm() {
                                 <div className="space-y-2">
                                   <input 
                                     type="number" min="0" 
-                                    className="w-full bg-white border border-[#E5E5DF] rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-center focus:outline-hidden focus:border-amber-400"
+                                    className="w-full bg-white border border-[#E2E8F0] rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-center focus:outline-hidden focus:border-amber-400"
                                     value={goal.ecTarget}
                                     placeholder="Target"
                                     onChange={(e) => handleUpdateGoal(s.id, goalSelectedMonth, "ecTarget", parseInt(e.target.value) || 0)}
                                     onFocus={(e) => e.target.value === "0" && e.target.select()}
                                   />
-                                  <div className="flex justify-between text-[9px] font-black uppercase text-[#8C8C70]">
+                                  <div className="flex justify-between text-[9px] font-black uppercase text-[#64748B]">
                                     <span>Aktual: {actualEc}</span>
                                     <span className={ecPct >= 100 ? "text-emerald-600" : ecPct > 0 ? "text-amber-600" : ""}>{ecPct.toFixed(0)}%</span>
                                   </div>
-                                  <div className="w-full h-1.5 bg-[#E5E5DF]/60 rounded-full overflow-hidden">
+                                  <div className="w-full h-1.5 bg-[#E2E8F0]/60 rounded-full overflow-hidden">
                                     <div style={{ width: `${Math.min(ecPct, 100)}%` }} className={`h-full ${ecPct >= 100 ? "bg-emerald-500" : "bg-amber-500"}`} />
                                   </div>
                                 </div>
@@ -6130,17 +7048,17 @@ function createCustomerProfilingForm() {
                                 <div className="space-y-2">
                                   <input 
                                     type="number" min="0" 
-                                    className="w-full bg-white border border-[#E5E5DF] rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-center focus:outline-hidden focus:border-amber-400"
+                                    className="w-full bg-white border border-[#E2E8F0] rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-center focus:outline-hidden focus:border-amber-400"
                                     value={goal.skuTarget}
                                     placeholder="Target"
                                     onChange={(e) => handleUpdateGoal(s.id, goalSelectedMonth, "skuTarget", parseInt(e.target.value) || 0)}
                                     onFocus={(e) => e.target.value === "0" && e.target.select()}
                                   />
-                                  <div className="flex justify-between text-[9px] font-black uppercase text-[#8C8C70]">
+                                  <div className="flex justify-between text-[9px] font-black uppercase text-[#64748B]">
                                     <span>Aktual: {actualSku}</span>
                                     <span className={skuPct >= 100 ? "text-emerald-600" : skuPct > 0 ? "text-amber-600" : ""}>{skuPct.toFixed(0)}%</span>
                                   </div>
-                                  <div className="w-full h-1.5 bg-[#E5E5DF]/60 rounded-full overflow-hidden">
+                                  <div className="w-full h-1.5 bg-[#E2E8F0]/60 rounded-full overflow-hidden">
                                     <div style={{ width: `${Math.min(skuPct, 100)}%` }} className={`h-full ${skuPct >= 100 ? "bg-emerald-500" : "bg-amber-500"}`} />
                                   </div>
                                 </div>
@@ -6149,7 +7067,7 @@ function createCustomerProfilingForm() {
                           );
                         })}
                         {salesmen.filter(s => s.isActive).length === 0 && (
-                          <tr><td colSpan={5} className="py-4 text-center text-xs text-[#8C8C70]">Belum ada salesman aktif didatabase.</td></tr>
+                          <tr><td colSpan={5} className="py-4 text-center text-xs text-[#64748B]">Belum ada salesman aktif didatabase.</td></tr>
                         )}
                       </tbody>
                     </table>
@@ -6240,21 +7158,26 @@ function createCustomerProfilingForm() {
                   <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
                     
                     {/* PROFILE HERO CARD */}
-                    <div className="bg-[#FAF9F6] border border-[#E5E5DF] rounded-3xl p-6 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                    <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-3xl p-6 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                       <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-full bg-rose-600 text-white flex items-center justify-center font-serif text-2xl font-black italic shadow-md shrink-0">
+                        <div className="w-14 h-14 rounded-full bg-rose-600 text-white flex items-center justify-center font-serif text-2xl font-black italic shadow-md shrink-0 border-2 border-amber-300">
                           {activeSalesmanName.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-xl font-serif font-black text-[#4A4A3C] italic">{activeSalesmanName}</h3>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-xl font-serif font-black text-[#0F172A] italic">{activeSalesmanName}</h3>
                             <span className="bg-emerald-100 text-emerald-800 text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wide">
                               AKTIF
                             </span>
+                            {activeSalesmanName.toLowerCase().trim() === "aris" && (
+                              <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[9px] font-black px-2.5 py-0.5 rounded-md uppercase tracking-wider flex items-center gap-1 shadow-xs animate-pulse">
+                                🌾 PERAN: FARMER
+                              </span>
+                            )}
                           </div>
-                          <p className="text-xs text-[#8C8C70] font-bold flex items-center gap-2 mt-1">
+                          <p className="text-xs text-[#64748B] font-bold flex items-center gap-2 mt-1">
                             <MapPin className="w-3.5 h-3.5 text-rose-500" /> Area: {foundSalesman.area || "Semarang"}
-                            <span className="text-[#E5E5DF]">|</span> Telp: {foundSalesman.phone || "-"}
+                            <span className="text-[#E2E8F0]">|</span> Telp: {foundSalesman.phone || "-"}
                           </p>
                         </div>
                       </div>
@@ -6267,7 +7190,7 @@ function createCustomerProfilingForm() {
                         }`}>
                           KAPASITAS: {isLayak ? "LAYAK KPI" : "TIDAK LAYAK"}
                         </span>
-                        <div className="bg-[#5A5A40]/10 text-[#5A5A40] text-xs font-black px-4 py-2 rounded-2xl flex items-center gap-2">
+                        <div className="bg-[#1E293B]/10 text-[#1E293B] text-xs font-black px-4 py-2 rounded-2xl flex items-center gap-2">
                           <Calendar className="w-4 h-4" />
                           {sCntDays} Hari Kerja Audit
                         </div>
@@ -6276,14 +7199,14 @@ function createCustomerProfilingForm() {
 
                     {/* SPREADSHEET NOO SYNC BAR */}
                     {sheetsScriptUrl ? (
-                      <div className="bg-[#FAF9F6] border border-[#E5E5DF] rounded-3xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
+                      <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-3xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold shrink-0">
                             <span className="text-lg">📊</span>
                           </div>
                           <div>
                             <h4 className="text-xs font-black text-emerald-800 uppercase tracking-wider">Koneksi Spreadsheet Aktif</h4>
-                            <p className="text-[10px] text-[#8C8C70] font-bold mt-1">
+                            <p className="text-[10px] text-[#64748B] font-bold mt-1">
                               Auto-sync aktif: Setiap penambahan atau penghapusan log NOO langsung terkirim ke Google Sheets!
                             </p>
                           </div>
@@ -6293,7 +7216,7 @@ function createCustomerProfilingForm() {
                             type="button"
                             onClick={() => handleFetchNooFromSheets()}
                             disabled={isFetchingNoo}
-                            className="flex-1 sm:flex-none bg-white hover:bg-gray-50 border border-[#E5E5DF] text-[#5A5A40] text-xs font-black px-4 py-2.5 rounded-2xl flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
+                            className="flex-1 sm:flex-none bg-white hover:bg-gray-50 border border-[#E2E8F0] text-[#1E293B] text-xs font-black px-4 py-2.5 rounded-2xl flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
                           >
                             <RefreshCw className={`w-3.5 h-3.5 ${isFetchingNoo ? "animate-spin" : ""}`} />
                             Tarik Data Sheets
@@ -6324,85 +7247,205 @@ function createCustomerProfilingForm() {
                       <div className="lg:col-span-2 space-y-6">
                         
                         {/* THE METRICS SUMMARY GRID */}
-                        <div className="bg-[#FAF9F6] border border-[#E5E5DF] rounded-3xl p-6 shadow-xs space-y-4">
-                          <h4 className="text-xs font-black text-[#5A5A40] uppercase tracking-wider flex items-center gap-1.5 border-b border-[#E5E5DF] pb-3">
+                        <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-3xl p-6 shadow-xs space-y-4">
+                          <h4 className="text-xs font-black text-[#1E293B] uppercase tracking-wider flex items-center gap-1.5 border-b border-[#E2E8F0] pb-3">
                             <TrendingUp className="w-4 h-4 text-rose-600" />
                             REKAP METRIC KPI - {activeSalesmanName.toUpperCase()}
                           </h4>
                           
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-                            <div className="bg-white border border-[#E5E5DF]/50 rounded-2xl p-3">
-                              <span className="block text-[9px] font-bold text-[#8C8C70] uppercase">Total Call (TC)</span>
-                              <span className="text-xl font-bold font-mono text-[#4A4A3C] block mt-1">{sTc}</span>
+                            <div className="bg-white border border-[#E2E8F0]/50 rounded-2xl p-3">
+                              <span className="block text-[9px] font-bold text-[#64748B] uppercase">Total Call (TC)</span>
+                              <span className="text-xl font-bold font-mono text-[#0F172A] block mt-1">{sTc}</span>
                             </div>
-                            <div className="bg-white border border-[#E5E5DF]/50 rounded-2xl p-3">
-                              <span className="block text-[9px] font-bold text-[#8C8C70] uppercase">Call Plan (CP)</span>
-                              <span className="text-xl font-bold font-mono text-[#4A4A3C] block mt-1">{sCp}</span>
+                            <div className="bg-white border border-[#E2E8F0]/50 rounded-2xl p-3">
+                              <span className="block text-[9px] font-bold text-[#64748B] uppercase">Call Plan (CP)</span>
+                              <span className="text-xl font-bold font-mono text-[#0F172A] block mt-1">{sCp}</span>
                             </div>
-                            <div className="bg-white border border-[#E5E5DF]/50 rounded-2xl p-3">
-                              <span className="block text-[9px] font-bold text-[#8C8C70] uppercase">Effective (EC)</span>
-                              <span className="text-xl font-bold font-mono text-[#4A4A3C] block mt-1">{sEc}</span>
+                            <div className="bg-white border border-[#E2E8F0]/50 rounded-2xl p-3">
+                              <span className="block text-[9px] font-bold text-[#64748B] uppercase">Effective (EC)</span>
+                              <span className="text-xl font-bold font-mono text-[#0F172A] block mt-1">{sEc}</span>
                             </div>
-                            <div className="bg-white border border-[#E5E5DF]/50 rounded-2xl p-3">
-                              <span className="block text-[9px] font-bold text-[#8C8C70] uppercase">SKU Terjual</span>
-                              <span className="text-xl font-bold font-mono text-[#4A4A3C] block mt-1">{sSku}</span>
+                            <div className="bg-white border border-[#E2E8F0]/50 rounded-2xl p-3">
+                              <span className="block text-[9px] font-bold text-[#64748B] uppercase">SKU Terjual</span>
+                              <span className="text-xl font-bold font-mono text-[#0F172A] block mt-1">{sSku}</span>
                             </div>
                           </div>
 
                           <div className="space-y-4 pt-2">
                             {/* CP/TC PROGRESS */}
                             <div>
-                              <div className="flex justify-between text-xs font-bold text-[#5A5A40] mb-1">
+                              <div className="flex justify-between text-xs font-bold text-[#1E293B] mb-1">
                                 <span>PENCAPAIAN CALL PLAN (TC terhadap CP)</span>
                                 <span className={`font-mono text-xs font-black ${sCpPct >= 80 ? "text-emerald-700" : "text-rose-700"}`}>
                                   {sCpPct.toFixed(1)}% {sCpPct >= 80 ? "✓ (Target >= 80%)" : "✗ (Kurang)"}
                                 </span>
                               </div>
-                              <div className="w-full h-3 bg-[#E5E5DF]/50 rounded-full overflow-hidden">
+                              <div className="w-full h-3 bg-[#E2E8F0]/50 rounded-full overflow-hidden">
                                 <div style={{ width: `${Math.min(sCpPct, 100)}%` }} className={`h-full transition-all duration-300 ${sCpPct >= 80 ? "bg-emerald-500" : "bg-rose-500"}`} />
                               </div>
                             </div>
 
                             {/* EC/CP PROGRESS */}
                             <div>
-                              <div className="flex justify-between text-xs font-bold text-[#5A5A40] mb-1">
+                              <div className="flex justify-between text-xs font-bold text-[#1E293B] mb-1">
                                 <span>EFFECTIVE CALL RATE (EC terhadap CP)</span>
                                 <span className={`font-mono text-xs font-black ${sEcPct >= 40 ? "text-emerald-700" : "text-rose-700"}`}>
                                   {sEcPct.toFixed(1)}% {sEcPct >= 40 ? "✓ (Target >= 40%)" : "✗ (Kurang)"}
                                 </span>
                               </div>
-                              <div className="w-full h-3 bg-[#E5E5DF]/50 rounded-full overflow-hidden">
+                              <div className="w-full h-3 bg-[#E2E8F0]/50 rounded-full overflow-hidden">
                                 <div style={{ width: `${Math.min(sEcPct, 100)}%` }} className={`h-full transition-all duration-300 ${sEcPct >= 40 ? "bg-emerald-500" : "bg-rose-500"}`} />
                               </div>
                             </div>
 
                             {/* SKU PROGRESS */}
                             <div>
-                              <div className="flex justify-between text-xs font-bold text-[#5A5A40] mb-1">
+                              <div className="flex justify-between text-xs font-bold text-[#1E293B] mb-1">
                                 <span>SKU AKUMULASI PENCAPAIAN ({sSku} Sku/Target {sTargetSku} Sku)</span>
                                 <span className="font-mono text-xs font-black text-amber-700">{sSkuPct.toFixed(1)}%</span>
                               </div>
-                              <div className="w-full h-3 bg-[#E5E5DF]/50 rounded-full overflow-hidden">
+                              <div className="w-full h-3 bg-[#E2E8F0]/50 rounded-full overflow-hidden">
                                 <div style={{ width: `${Math.min(sSkuPct, 100)}%` }} className="h-full bg-amber-500 transition-all duration-300" />
                               </div>
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-dashed border-[#E5E5DF] text-xs">
-                            <div className="bg-[#E5E5DF]/20 p-3 rounded-2xl">
-                              <span className="block text-[10px] text-[#8C8C70] font-bold uppercase">BIAYA OPERASIONAL TOTAL:</span>
-                              <span className="text-[#4A4A3C] font-mono font-black text-sm block mt-0.5">Rp {sCost.toLocaleString("id-ID")}</span>
+                          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-dashed border-[#E2E8F0] text-xs">
+                            <div className="bg-[#E2E8F0]/20 p-3 rounded-2xl">
+                              <span className="block text-[10px] text-[#64748B] font-bold uppercase">BIAYA OPERASIONAL TOTAL:</span>
+                              <span className="text-[#0F172A] font-mono font-black text-sm block mt-0.5">Rp {sCost.toLocaleString("id-ID")}</span>
                             </div>
-                            <div className="bg-[#E5E5DF]/20 p-3 rounded-2xl">
-                              <span className="block text-[10px] text-[#8C8C70] font-bold uppercase">TOTAL PENAGIHAN:</span>
+                            <div className="bg-[#E2E8F0]/20 p-3 rounded-2xl">
+                              <span className="block text-[10px] text-[#64748B] font-bold uppercase">TOTAL PENAGIHAN:</span>
                               <span className="text-indigo-800 font-mono font-black text-sm block mt-0.5">Rp {sBill.toLocaleString("id-ID")}</span>
                             </div>
                           </div>
                         </div>
 
+                        {/* SPECIAL FARMER ROLE MONITORING DASHBOARD (FOR ARIS) */}
+                        {activeSalesmanName.toLowerCase().trim() === "aris" && (
+                          <div className="bg-[#F8FAFC] border border-amber-200 rounded-3xl p-6 shadow-xs space-y-6 relative overflow-hidden">
+                            {/* Decorative farm watermark */}
+                            <div className="absolute top-4 right-4 text-4xl opacity-20 select-none pointer-events-none">🌾</div>
+                            
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="bg-amber-600/10 text-amber-900 border border-amber-300 text-[9px] font-black px-2.5 py-1 rounded-md uppercase tracking-wider">
+                                  PERAN UTAMA: FARMER
+                                </span>
+                                <span className="text-[10px] font-bold text-gray-500">• Monitoring Kinerja Store & Pembayaran</span>
+                              </div>
+                              <h3 className="text-base font-serif font-black text-amber-900 italic mt-2 uppercase tracking-tight flex items-center gap-2">
+                                🌾 Farmer Insight & Monitoring Engine — {activeSalesmanName}
+                              </h3>
+                              <p className="text-xs text-[#64748B] font-medium leading-relaxed mt-1">
+                                Tugas utama Farmer adalah **menjaga kelangsungan orderan toko**, **memantau penurunan performa toko** secara proaktif, serta **menangkap potensi kenaikan transaksi** dari riwayat nilai pembayaran masing-masing outlet.
+                              </p>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {/* SECT 1: STORES WITH DECLINING PERFORMANCE */}
+                              <div className="bg-rose-50/50 rounded-2xl p-4 border border-rose-100 space-y-3">
+                                <div className="flex items-center gap-2 text-rose-800">
+                                  <span className="text-lg">⚠️</span>
+                                  <h4 className="text-xs font-black uppercase tracking-wider">Toko Performa Turun (Alarm Kunjungan)</h4>
+                                </div>
+                                <p className="text-[10px] text-[#64748B] leading-normal font-sans font-bold">
+                                  Dideteksi dari tren nominal pembayaran & retensi check-in yang menyusut tajam:
+                                </p>
+                                
+                                <div className="space-y-2.5">
+                                  {/* Item 1 */}
+                                  <div className="bg-white p-2.5 rounded-xl border border-rose-200/40 shadow-2xs">
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-xs font-black text-rose-950 font-serif">Toko Rahayu (Area Sektor)</span>
+                                      <span className="text-[9px] font-black uppercase bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded-md">-45%</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-[10px] mt-1 text-gray-700">
+                                      <span>Rerata Bayar: Rp 850Rb</span>
+                                      <span className="font-semibold text-rose-700">Terakhir: Rp 450.000 (Tunai)</span>
+                                    </div>
+                                    <div className="text-[9px] text-[#64748B] mt-1 font-sans italic">
+                                      *Catatan: Toko sepi order, butuh proaktif visit untuk menawarkan demo produk Lampu LED Titan.*
+                                    </div>
+                                  </div>
+
+                                  {/* Item 2 */}
+                                  <div className="bg-white p-2.5 rounded-xl border border-rose-200/40 shadow-2xs">
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-xs font-black text-rose-950 font-serif">Kios Sinar Baru (Area Semarang)</span>
+                                      <span className="text-[9px] font-black uppercase bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded-md">-60%</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-[10px] mt-1 text-gray-700">
+                                      <span>Rerata Bayar: Rp 375Rb</span>
+                                      <span className="font-semibold text-rose-700">Terakhir: Rp 150.000 (Giro)</span>
+                                    </div>
+                                    <div className="text-[9px] text-[#64748B] mt-1 font-sans italic">
+                                      *Catatan: Sangat kritis! Alokasi stok tersumbat. Aris perlu langsung follow-up penagihan.*
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* SECT 2: HIGH POTENTIAL STORES */}
+                              <div className="bg-emerald-50/50 rounded-2xl p-4 border border-emerald-100 space-y-3">
+                                <div className="flex items-center gap-2 text-emerald-800">
+                                  <span className="text-lg">🚀</span>
+                                  <h4 className="text-xs font-black uppercase tracking-wider">Toko Potensial (Peluang Upsell)</h4>
+                                </div>
+                                <p className="text-[10px] text-[#64748B] leading-normal font-sans font-bold">
+                                  Mengidentifikasi toko berbayar lancar yang siap menerima peningkatan pasokan transaksi:
+                                </p>
+
+                                <div className="space-y-2.5">
+                                  {/* Item 1 */}
+                                  <div className="bg-white p-2.5 rounded-xl border border-emerald-200/40 shadow-2xs">
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-xs font-black text-emerald-950 font-serif font-bold">Toko Makmur Jaya</span>
+                                      <span className="text-[9px] font-black uppercase bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md">GOLD POTENTIAL</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-[10px] mt-1 text-gray-700">
+                                      <span>Rerata Bayar: Rp 3,2Jt</span>
+                                      <span className="font-semibold text-emerald-700">Terakhir: Rp 3.800.000 (Transfer)</span>
+                                    </div>
+                                    <div className="text-[9px] text-[#64748B] mt-1 font-sans italic">
+                                      *Tindakan: Kapasitas bayar tinggi! Tawarkan promo grosir Tissue Yo Pipi 250S.*
+                                    </div>
+                                  </div>
+
+                                  {/* Item 2 */}
+                                  <div className="bg-white p-2.5 rounded-xl border border-emerald-200/40 shadow-2xs">
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-xs font-black text-emerald-950 font-serif font-bold">Warung Bu Sri</span>
+                                      <span className="text-[9px] font-black uppercase bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md">FAST MOVING</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-[10px] mt-1 text-gray-700">
+                                      <span>Rerata Bayar: Rp 1,4Jt</span>
+                                      <span className="font-semibold text-emerald-700">Terakhir: Rp 1.850.000 (Tunai)</span>
+                                    </div>
+                                    <div className="text-[9px] text-[#64748B] mt-1 font-sans italic">
+                                      *Tindakan: Sering repeat-order produk Baby Care. Sangat siap dinaikkan transaksinya.*
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* FLOW EXPLANATION FOOTNOTE */}
+                            <div className="bg-amber-50 rounded-2xl p-4 border border-amber-100 flex items-start gap-2.5">
+                              <span className="text-base">📢</span>
+                              <div className="text-[11px] text-amber-900 leading-relaxed font-medium">
+                                <strong className="font-extrabold uppercase text-amber-950 block mb-0.5">💡 Bagaimana Cara Memantau Pembayaran Toko?</strong>
+                                Setiap kali Admin menginput laporan setoran harian melalui menu <strong className="text-rose-900 font-extrabold">"PILIH SALESMAN (BANTU INPUT)"</strong> di atas, nominal **Tagihan Bayar Tunai, Transfer, maupun Giro** yang dimasukkan akan langsung terekam dan terakumulasi ke dalam grafik riwayat performa visual di atas, sehingga Anda dapat mendeteksi kondisi keuangan outlet secara instan tanpa perlu olah data manual.
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                         {/* NOO TRACKING SECTION */}
-                        <div className="bg-[#FAF9F6] border border-[#E5E5DF] rounded-3xl p-6 shadow-sm space-y-4">
-                          <div className="flex justify-between items-center border-b border-[#E5E5DF] pb-3">
+                        <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-3xl p-6 shadow-sm space-y-4">
+                          <div className="flex justify-between items-center border-b border-[#E2E8F0] pb-3">
                             <h4 className="text-xs font-black text-rose-700 uppercase tracking-wider flex items-center gap-1.5">
                               <Crown className="w-4 h-4 text-rose-600 animate-bounce" />
                               NEW OUTLET OPENING (NOO) HARIAN
@@ -6434,16 +7477,16 @@ function createCustomerProfilingForm() {
 
                           {/* Historical records table */}
                           <div className="space-y-4">
-                            <span className="text-[10px] font-extrabold text-[#8C8C70] uppercase block">Riwayat Log NOO {foundSalesman.name}:</span>
+                            <span className="text-[10px] font-extrabold text-[#64748B] uppercase block">Riwayat Log NOO {foundSalesman.name}:</span>
                             {sNooLogs.length === 0 ? (
-                              <div className="text-center py-6 border border-dashed border-[#E5E5DF] rounded-2xl text-xs text-[#8C8C70] font-bold">
+                              <div className="text-center py-6 border border-dashed border-[#E2E8F0] rounded-2xl text-xs text-[#64748B] font-bold">
                                 Tidak ada log harian NOO. Silakan tambahkan pada form di samping kanan.
                               </div>
                             ) : (
-                              <div className="overflow-x-auto border border-[#E5E5DF] rounded-2xl bg-white">
+                              <div className="overflow-x-auto border border-[#E2E8F0] rounded-2xl bg-white">
                                 <table className="w-full text-left border-collapse text-xs">
                                   <thead>
-                                    <tr className="bg-[#E5E5DF]/20 border-b border-[#E5E5DF] text-[9px] font-black uppercase text-[#8C8C70]">
+                                    <tr className="bg-[#E2E8F0]/20 border-b border-[#E2E8F0] text-[9px] font-black uppercase text-[#64748B]">
                                       <th className="p-2.5">Tanggal</th>
                                       <th className="p-2.5 text-center">Warung</th>
                                       <th className="p-2.5 text-center">Toko/Store</th>
@@ -6453,11 +7496,11 @@ function createCustomerProfilingForm() {
                                       <th className="p-2.5 text-center">Aksi</th>
                                     </tr>
                                   </thead>
-                                  <tbody className="divide-y divide-[#E5E5DF]/30">
+                                  <tbody className="divide-y divide-[#E2E8F0]/30">
                                     {sNooLogs.map(log => {
                                       const rowSum = log.warung + log.store + log.kiosk + log.wholesaler;
                                       return (
-                                        <tr key={log.id} className="hover:bg-[#E5E5DF]/10 transition-colors bg-white text-[#4A4A3C]">
+                                        <tr key={log.id} className="hover:bg-[#E2E8F0]/10 transition-colors bg-white text-[#0F172A]">
                                           <td className="p-2.5 font-bold font-mono">{log.date}</td>
                                           <td className="p-2.5 text-center font-semibold text-amber-700">{log.warung}</td>
                                           <td className="p-2.5 text-center font-semibold text-rose-700">{log.store}</td>
@@ -6488,18 +7531,18 @@ function createCustomerProfilingForm() {
 
                       {/* COLUMN 3: NOO INPUT CONTROL PANEL */}
                       <div>
-                        <div className="bg-[#FAF9F6] border border-[#E5E5DF] rounded-3xl p-6 shadow-sm space-y-4 stick top-6">
-                          <h4 className="text-sm font-bold text-[#4A4A3C] uppercase tracking-wider flex items-center gap-1.5 border-b border-[#E5E5DF] pb-3">
+                        <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-3xl p-6 shadow-sm space-y-4 stick top-6">
+                          <h4 className="text-sm font-bold text-[#0F172A] uppercase tracking-wider flex items-center gap-1.5 border-b border-[#E2E8F0] pb-3">
                             <Plus className="w-4 h-4 text-rose-600 animate-pulse" />
                             LOG NOO HARIAN (+ HARIAN)
                           </h4>
-                          <p className="text-[10px] text-[#8C8C70] leading-relaxed uppercase font-bold">
+                          <p className="text-[10px] text-[#64748B] leading-relaxed uppercase font-bold">
                             Catat pembukaan outlet baru salesman <strong className="text-rose-800">{activeSalesmanName}</strong> secara harian ke dalam database.
                           </p>
 
                           <form onSubmit={handleAddNoo} className="space-y-4">
                             <div>
-                              <label className="block text-[9px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+                              <label className="block text-[9px] font-bold text-[#64748B] uppercase tracking-wider mb-1">
                                 Tanggal Log Outlet
                               </label>
                               <input
@@ -6507,21 +7550,21 @@ function createCustomerProfilingForm() {
                                 required
                                 value={newNooDate}
                                 onChange={(e) => setNewNooDate(e.target.value)}
-                                className="w-full bg-white border border-[#E5E5DF] text-[#4A4A3C] font-black text-xs px-3 py-2.5 rounded-xl focus:outline-hidden"
+                                className="w-full bg-white border border-[#E2E8F0] text-[#0F172A] font-black text-xs px-3 py-2.5 rounded-xl focus:outline-hidden"
                               />
                             </div>
 
                             {/* WARUNG */}
-                            <div className="bg-white border border-[#E5E5DF] rounded-2xl p-3 flex items-center justify-between">
+                            <div className="bg-white border border-[#E2E8F0] rounded-2xl p-3 flex items-center justify-between">
                               <div>
                                 <span className="text-[10px] font-bold text-amber-800 block uppercase leading-none font-sans">Warung Kelontong</span>
-                                <span className="text-[8px] text-[#8C8C70] uppercase mt-0.5 block">Warung kecil & depot</span>
+                                <span className="text-[8px] text-[#64748B] uppercase mt-0.5 block">Warung kecil & depot</span>
                               </div>
                               <div className="flex items-center gap-1.5">
                                 <button
                                   type="button"
                                   onClick={() => setNewNooWarung(p => Math.max(0, p - 1))}
-                                  className="w-8 h-8 rounded-xl bg-[#E5E5DF]/40 hover:bg-[#E5E5DF]/70 text-[#4A4A3C] flex items-center justify-center font-bold text-lg select-none cursor-pointer"
+                                  className="w-8 h-8 rounded-xl bg-[#E2E8F0]/40 hover:bg-[#E2E8F0]/70 text-[#0F172A] flex items-center justify-center font-bold text-lg select-none cursor-pointer"
                                 >
                                   -
                                 </button>
@@ -6539,16 +7582,16 @@ function createCustomerProfilingForm() {
                             </div>
 
                             {/* TOKO MODERN */}
-                            <div className="bg-white border border-[#E5E5DF] rounded-2xl p-3 flex items-center justify-between">
+                            <div className="bg-white border border-[#E2E8F0] rounded-2xl p-3 flex items-center justify-between">
                               <div>
                                 <span className="text-[10px] font-bold text-rose-800 block uppercase leading-none font-sans">Toko / Store</span>
-                                <span className="text-[8px] text-[#8C8C70] uppercase mt-0.5 block">Toko sedang, minimarket</span>
+                                <span className="text-[8px] text-[#64748B] uppercase mt-0.5 block">Toko sedang, minimarket</span>
                               </div>
                               <div className="flex items-center gap-1.5">
                                 <button
                                   type="button"
                                   onClick={() => setNewNooStore(p => Math.max(0, p - 1))}
-                                  className="w-8 h-8 rounded-xl bg-[#E5E5DF]/40 hover:bg-[#E5E5DF]/70 text-[#4A4A3C] flex items-center justify-center font-bold text-lg select-none cursor-pointer"
+                                  className="w-8 h-8 rounded-xl bg-[#E2E8F0]/40 hover:bg-[#E2E8F0]/70 text-[#0F172A] flex items-center justify-center font-bold text-lg select-none cursor-pointer"
                                 >
                                   -
                                 </button>
@@ -6566,16 +7609,16 @@ function createCustomerProfilingForm() {
                             </div>
 
                             {/* KIOS */}
-                            <div className="bg-white border border-[#E5E5DF] rounded-2xl p-3 flex items-center justify-between">
+                            <div className="bg-white border border-[#E2E8F0] rounded-2xl p-3 flex items-center justify-between">
                               <div>
                                 <span className="text-[10px] font-bold text-indigo-800 block uppercase leading-none font-sans">Kios Atap</span>
-                                <span className="text-[8px] text-[#8C8C70] uppercase mt-0.5 block">Kios pasar & tenda</span>
+                                <span className="text-[8px] text-[#64748B] uppercase mt-0.5 block">Kios pasar & tenda</span>
                               </div>
                               <div className="flex items-center gap-1.5">
                                 <button
                                   type="button"
                                   onClick={() => setNewNooKiosk(p => Math.max(0, p - 1))}
-                                  className="w-8 h-8 rounded-xl bg-[#E5E5DF]/40 hover:bg-[#E5E5DF]/70 text-[#4A4A3C] flex items-center justify-center font-bold text-lg select-none cursor-pointer"
+                                  className="w-8 h-8 rounded-xl bg-[#E2E8F0]/40 hover:bg-[#E2E8F0]/70 text-[#0F172A] flex items-center justify-center font-bold text-lg select-none cursor-pointer"
                                 >
                                   -
                                 </button>
@@ -6593,16 +7636,16 @@ function createCustomerProfilingForm() {
                             </div>
 
                             {/* GROSIR */}
-                            <div className="bg-white border border-[#E5E5DF] rounded-2xl p-3 flex items-center justify-between">
+                            <div className="bg-white border border-[#E2E8F0] rounded-2xl p-3 flex items-center justify-between">
                               <div>
                                 <span className="text-[10px] font-bold text-emerald-800 block uppercase leading-none font-sans">Wholesaler / Grosir</span>
-                                <span className="text-[8px] text-[#8C8C70] uppercase mt-0.5 block">Toko agen besar</span>
+                                <span className="text-[8px] text-[#64748B] uppercase mt-0.5 block">Toko agen besar</span>
                               </div>
                               <div className="flex items-center gap-1.5">
                                 <button
                                   type="button"
                                   onClick={() => setNewNooWholesaler(p => Math.max(0, p - 1))}
-                                  className="w-8 h-8 rounded-xl bg-[#E5E5DF]/40 hover:bg-[#E5E5DF]/70 text-[#4A4A3C] flex items-center justify-center font-bold text-lg select-none cursor-pointer"
+                                  className="w-8 h-8 rounded-xl bg-[#E2E8F0]/40 hover:bg-[#E2E8F0]/70 text-[#0F172A] flex items-center justify-center font-bold text-lg select-none cursor-pointer"
                                 >
                                   -
                                 </button>
@@ -6621,7 +7664,7 @@ function createCustomerProfilingForm() {
 
                             <button
                               type="submit"
-                              className="w-full bg-[#5A5A40] hover:bg-[#4A4A3C] text-white font-black text-xs uppercase tracking-wider py-3.5 rounded-xl shadow-md hover:shadow-lg transition cursor-pointer flex justify-center items-center gap-1.5"
+                              className="w-full bg-[#1E293B] hover:bg-[#0F172A] text-white font-black text-xs uppercase tracking-wider py-3.5 rounded-xl shadow-md hover:shadow-lg transition cursor-pointer flex justify-center items-center gap-1.5"
                             >
                               <Check className="w-4 h-4" /> Simpan Log NOO Harian
                             </button>
@@ -6629,27 +7672,27 @@ function createCustomerProfilingForm() {
                         </div>
 
                         {/* LIST OF RECENT KPI REPORTS FILED */}
-                        <div className="bg-[#FAF9F6] border border-[#E5E5DF] rounded-3xl p-6 shadow-sm mt-6 space-y-4">
-                          <h4 className="text-xs font-black text-[#5A5A40] uppercase tracking-wider flex items-center gap-1.5 border-b border-[#E5E5DF] pb-3">
+                        <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-3xl p-6 shadow-sm mt-6 space-y-4">
+                          <h4 className="text-xs font-black text-[#1E293B] uppercase tracking-wider flex items-center gap-1.5 border-b border-[#E2E8F0] pb-3">
                             <FileText className="w-4 h-4 text-rose-500" />
                             LAPORAN HARIAN TERAKHIR
                           </h4>
                           {salesmanReports.length === 0 ? (
-                            <p className="text-[11px] text-[#8C8C70] text-center font-semibold italic">Belum ada laporan audit KPI terdaftar.</p>
+                            <p className="text-[11px] text-[#64748B] text-center font-semibold italic">Belum ada laporan audit KPI terdaftar.</p>
                           ) : (
                             <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
                               {salesmanReports.slice(0, 5).map(rep => (
-                                <div key={rep.id} className="bg-white p-3 rounded-2xl border border-[#E5E5DF]/60 text-[11px] space-y-2">
+                                <div key={rep.id} className="bg-white p-3 rounded-2xl border border-[#E2E8F0]/60 text-[11px] space-y-2">
                                   <div className="flex justify-between font-bold">
                                     <span className="font-mono text-rose-800">{rep.date}</span>
-                                    <span className="text-[#8C8C70]">{rep.cycle}</span>
+                                    <span className="text-[#64748B]">{rep.cycle}</span>
                                   </div>
-                                  <div className="grid grid-cols-2 gap-1 text-[10px] text-[#5A5A40]">
+                                  <div className="grid grid-cols-2 gap-1 text-[10px] text-[#1E293B]">
                                     <div>TC/CP/EC: <strong className="text-gray-800 font-mono">{rep.tc}/{rep.cp}/{rep.ec}</strong></div>
                                     <div>SKU Terjual: <strong className="text-gray-800 font-mono">{rep.skuTotal}</strong></div>
                                   </div>
                                   {rep.notes && (
-                                    <p className="text-[10px] text-[#8C8C70] leading-snug border-t border-gray-100 pt-1.5 italic">
+                                    <p className="text-[10px] text-[#64748B] leading-snug border-t border-gray-100 pt-1.5 italic">
                                       "{rep.notes}"
                                     </p>
                                   )}
@@ -6677,35 +7720,35 @@ function createCustomerProfilingForm() {
       {/* 0. CUSTOMER PROFILING LOYALTY MODAL */}
       <AnimatePresence>
         {isCustomerModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#4A4A3C]/30 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F172A]/30 backdrop-blur-xs">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-[#FAF9F6] rounded-3xl p-6 w-full max-w-lg border border-[#E5E5DF] shadow-2xl relative max-h-[90vh] overflow-y-auto"
+              className="bg-[#F8FAFC] rounded-3xl p-6 w-full max-w-lg border border-[#E2E8F0] shadow-2xl relative max-h-[90vh] overflow-y-auto"
             >
               <button
                 onClick={() => setIsCustomerModalOpen(false)}
-                className="absolute right-4 top-4 text-[#8C8C70] hover:text-[#4A4A3C] transition cursor-pointer"
+                className="absolute right-4 top-4 text-[#64748B] hover:text-[#0F172A] transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
 
-              <h3 className="text-base font-black text-[#5A5A40] uppercase tracking-wider mb-1 flex items-center gap-2">
+              <h3 className="text-base font-black text-[#1E293B] uppercase tracking-wider mb-1 flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-amber-500" />
                 Customer Profiling & Loyalty Sign-up
               </h3>
-              <p className="text-[11px] text-[#8C8C70] uppercase tracking-widest mb-4">
+              <p className="text-[11px] text-[#64748B] uppercase tracking-widest mb-4">
                 Input Profil Toko & Klasifikasi Tingkat Poin
               </p>
 
-              <hr className="border-[#E5E5DF] mb-4" />
+              <hr className="border-[#E2E8F0] mb-4" />
 
               <form onSubmit={handleSaveCustomerProfile} className="space-y-4">
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[10px] font-bold text-[#4A4A3C] uppercase tracking-wider mb-1">
+                    <label className="block text-[10px] font-bold text-[#0F172A] uppercase tracking-wider mb-1">
                       Nama Toko / Outlet *
                     </label>
                     <input
@@ -6714,18 +7757,18 @@ function createCustomerProfilingForm() {
                       placeholder="Contoh: TOKO ANUGERAH UTAMA"
                       value={newCustomer.name}
                       onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })}
-                      className="w-full bg-[#E5E5DF]/15 border border-[#E5E5DF] rounded-xl px-3 py-2 text-xs font-semibold focus:outline-hidden"
+                      className="w-full bg-[#E2E8F0]/15 border border-[#E2E8F0] rounded-xl px-3 py-2 text-xs font-semibold focus:outline-hidden"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-[#4A4A3C] uppercase tracking-wider mb-1">
+                    <label className="block text-[10px] font-bold text-[#0F172A] uppercase tracking-wider mb-1">
                       Jenis Toko / Outlet
                     </label>
                     <select
                       value={newCustomer.jenisToko}
                       onChange={(e) => setNewCustomer({ ...newCustomer, jenisToko: e.target.value })}
-                      className="w-full bg-white border border-[#E5E5DF] rounded-xl px-2 py-2 text-xs text-[#4A4A3C] focus:outline-hidden"
+                      className="w-full bg-white border border-[#E2E8F0] rounded-xl px-2 py-2 text-xs text-[#0F172A] focus:outline-hidden"
                     >
                       <option value="Sembako">🌾 Toko Sembako</option>
                       <option value="Kelontong">🛒 Toko Kelontong</option>
@@ -6736,7 +7779,7 @@ function createCustomerProfilingForm() {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold text-[#4A4A3C] uppercase tracking-wider mb-1">
+                  <label className="block text-[10px] font-bold text-[#0F172A] uppercase tracking-wider mb-1">
                     Alamat Lengkap Toko
                   </label>
                   <input
@@ -6744,13 +7787,13 @@ function createCustomerProfilingForm() {
                     placeholder="Contoh: Jl. Diponegoro No. 45, Semarang Tengah"
                     value={newCustomer.address}
                     onChange={(e) => setNewCustomer({ ...newCustomer, address: e.target.value })}
-                    className="w-full bg-[#E5E5DF]/15 border border-[#E5E5DF] rounded-xl px-3 py-2 text-xs focus:outline-hidden"
+                    className="w-full bg-[#E2E8F0]/15 border border-[#E2E8F0] rounded-xl px-3 py-2 text-xs focus:outline-hidden"
                   />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[10px] font-bold text-[#4A4A3C] uppercase tracking-wider mb-1">
+                    <label className="block text-[10px] font-bold text-[#0F172A] uppercase tracking-wider mb-1">
                       Sales Representative (Penanggung Jawab)
                     </label>
                     <select
@@ -6764,7 +7807,7 @@ function createCustomerProfilingForm() {
                           area: match?.area || "Semarang"
                         });
                       }}
-                      className="w-full bg-white border border-[#E5E5DF] rounded-xl px-2 py-2 text-xs text-[#4A4A3C] focus:outline-hidden"
+                      className="w-full bg-white border border-[#E2E8F0] rounded-xl px-2 py-2 text-xs text-[#0F172A] focus:outline-hidden"
                     >
                       {salesmen.map(s => (
                         <option key={s.id} value={s.name}>
@@ -6775,7 +7818,7 @@ function createCustomerProfilingForm() {
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-[#4A4A3C] uppercase tracking-wider mb-1">
+                    <label className="block text-[10px] font-bold text-[#0F172A] uppercase tracking-wider mb-1">
                       Area Distribusi
                     </label>
                     <input
@@ -6783,17 +7826,17 @@ function createCustomerProfilingForm() {
                       value={newCustomer.area}
                       onChange={(e) => setNewCustomer({ ...newCustomer, area: e.target.value })}
                       placeholder="Nama Area"
-                      className="w-full bg-white border border-[#E5E5DF] rounded-xl px-3 py-2 text-xs font-bold text-[#4A4A3C] focus:outline-hidden"
+                      className="w-full bg-white border border-[#E2E8F0] rounded-xl px-3 py-2 text-xs font-bold text-[#0F172A] focus:outline-hidden"
                     />
                   </div>
                 </div>
 
-                <hr className="border-[#E5E5DF]/40 my-2" />
+                <hr className="border-[#E2E8F0]/40 my-2" />
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-[#E5E5DF]/20 p-3.5 rounded-2xl border border-[#E5E5DF]/40">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-[#E2E8F0]/20 p-3.5 rounded-2xl border border-[#E2E8F0]/40">
                   
                   <div>
-                    <label className="block text-[9px] font-black text-[#5A5A40] uppercase tracking-wider mb-1">
+                    <label className="block text-[9px] font-black text-[#1E293B] uppercase tracking-wider mb-1">
                       Omzet Per Bulan *
                     </label>
                     <input
@@ -6802,13 +7845,13 @@ function createCustomerProfilingForm() {
                       min="0"
                       value={newCustomer.estimatedOmzet}
                       onChange={(e) => setNewCustomer({ ...newCustomer, estimatedOmzet: Number(e.target.value) })}
-                      className="w-full bg-white border border-[#E5E5DF] rounded-xl px-2 py-1.5 text-xs font-mono font-bold text-[#4A4A3C]"
+                      className="w-full bg-white border border-[#E2E8F0] rounded-xl px-2 py-1.5 text-xs font-mono font-bold text-[#0F172A]"
                     />
-                    <span className="text-[8px] text-[#8C8C70] block mt-1 leading-none">Min. Rp 5jt (Silver), 8jt (Gold), 15jt (Plat)</span>
+                    <span className="text-[8px] text-[#64748B] block mt-1 leading-none">Min. Rp 5jt (Silver), 8jt (Gold), 15jt (Plat)</span>
                   </div>
 
                   <div>
-                    <label className="block text-[9px] font-black text-[#5A5A40] uppercase tracking-wider mb-1">
+                    <label className="block text-[9px] font-black text-[#1E293B] uppercase tracking-wider mb-1">
                       Nota / Hari (DKR)
                     </label>
                     <input
@@ -6817,12 +7860,12 @@ function createCustomerProfilingForm() {
                       min="0"
                       value={newCustomer.notesPerDay}
                       onChange={(e) => setNewCustomer({ ...newCustomer, notesPerDay: Number(e.target.value) })}
-                      className="w-full bg-white border border-[#E5E5DF] rounded-xl px-2 py-1.5 text-xs text-center font-mono text-[#4A4A3C]"
+                      className="w-full bg-white border border-[#E2E8F0] rounded-xl px-2 py-1.5 text-xs text-center font-mono text-[#0F172A]"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[9px] font-black text-[#5A5A40] uppercase tracking-wider mb-1">
+                    <label className="block text-[9px] font-black text-[#1E293B] uppercase tracking-wider mb-1">
                       Umur Gabung (Th)
                     </label>
                     <input
@@ -6831,15 +7874,15 @@ function createCustomerProfilingForm() {
                       min="0"
                       value={newCustomer.storeAgeYears}
                       onChange={(e) => setNewCustomer({ ...newCustomer, storeAgeYears: Number(e.target.value) })}
-                      className="w-full bg-white border border-[#E5E5DF] rounded-xl px-2 py-1.5 text-xs text-center font-mono text-[#4A4A3C]"
+                      className="w-full bg-white border border-[#E2E8F0] rounded-xl px-2 py-1.5 text-xs text-center font-mono text-[#0F172A]"
                     />
                   </div>
 
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <span className="text-[10px] font-bold text-[#8C8C70] uppercase">Status Kepemilikan Bangunan:</span>
-                  <label className="flex items-center gap-1.5 text-xs text-[#4A4A3C] font-semibold">
+                  <span className="text-[10px] font-bold text-[#64748B] uppercase">Status Kepemilikan Bangunan:</span>
+                  <label className="flex items-center gap-1.5 text-xs text-[#0F172A] font-semibold">
                     <input
                       type="radio"
                       name="ownership"
@@ -6849,7 +7892,7 @@ function createCustomerProfilingForm() {
                     />
                     Milik Sendiri
                   </label>
-                  <label className="flex items-center gap-1.5 text-xs text-[#4A4A3C] font-semibold">
+                  <label className="flex items-center gap-1.5 text-xs text-[#0F172A] font-semibold">
                     <input
                       type="radio"
                       name="ownership"
@@ -6865,13 +7908,13 @@ function createCustomerProfilingForm() {
                   <button
                     type="button"
                     onClick={() => setIsCustomerModalOpen(false)}
-                    className="px-4 py-2 text-xs font-bold text-[#8C8C70] uppercase bg-[#E5E5DF]/40 hover:bg-[#E5E5DF] rounded-xl transition cursor-pointer"
+                    className="px-4 py-2 text-xs font-bold text-[#64748B] uppercase bg-[#E2E8F0]/40 hover:bg-[#E2E8F0] rounded-xl transition cursor-pointer"
                   >
                     Batal
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 text-xs font-bold text-white uppercase bg-[#5A5A40] hover:bg-[#4A4A3C] rounded-xl shadow-xs transition cursor-pointer"
+                    className="px-5 py-2 text-xs font-bold text-white uppercase bg-[#1E293B] hover:bg-[#0F172A] rounded-xl shadow-xs transition cursor-pointer"
                   >
                     Simpan Profiling (+50 Poin)
                   </button>
@@ -6886,28 +7929,28 @@ function createCustomerProfilingForm() {
       {/* 1. SALESMAN MODAL */}
       <AnimatePresence>
         {salesmanModal.isOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#4A4A3C]/30 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F172A]/30 backdrop-blur-xs">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-[#FAF9F6] rounded-3xl p-6 w-full max-w-md border border-[#E5E5DF] shadow-2xl relative"
+              className="bg-[#F8FAFC] rounded-3xl p-6 w-full max-w-md border border-[#E2E8F0] shadow-2xl relative"
             >
               <button
                 onClick={() => setSalesmanModal({ ...salesmanModal, isOpen: false })}
-                className="absolute right-4 top-4 text-[#8C8C70] hover:text-[#4A4A3C] transition cursor-pointer"
+                className="absolute right-4 top-4 text-[#64748B] hover:text-[#0F172A] transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
 
-              <h3 className="text-base font-bold text-[#4A4A3C] font-serif italic uppercase mb-4 flex items-center gap-2">
-                <Database className="w-5 h-5 text-[#5A5A40]" />
+              <h3 className="text-base font-bold text-[#0F172A] font-serif italic uppercase mb-4 flex items-center gap-2">
+                <Database className="w-5 h-5 text-[#1E293B]" />
                 {salesmanModal.id ? "Edit Data Salesman" : "Tambah Salesman Baru"}
               </h3>
 
               <form onSubmit={handleSaveSalesman} className="flex flex-col gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+                  <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">
                     Nama Salesman (Kapital) *
                   </label>
                   <input
@@ -6916,12 +7959,12 @@ function createCustomerProfilingForm() {
                     value={salesmanModal.name}
                     onChange={(e) => setSalesmanModal({ ...salesmanModal, name: e.target.value })}
                     placeholder="Contoh: RENY, BUDI, dsb."
-                    className="w-full bg-[#FAF9F6] border border-[#E5E5DF] rounded-xl px-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40] text-[#4A4A3C] uppercase font-bold"
+                    className="w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#1E293B] text-[#0F172A] uppercase font-bold"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+                  <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">
                     Wilayah Kunjungan / Area
                   </label>
                   <input
@@ -6929,12 +7972,12 @@ function createCustomerProfilingForm() {
                     value={salesmanModal.area}
                     onChange={(e) => setSalesmanModal({ ...salesmanModal, area: e.target.value })}
                     placeholder="Contoh: Semarang Barat"
-                    className="w-full bg-[#FAF9F6] border border-[#E5E5DF] rounded-xl px-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40] text-[#4A4A3C]"
+                    className="w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#1E293B] text-[#0F172A]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+                  <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">
                     Nomor HP Salesman
                   </label>
                   <input
@@ -6942,21 +7985,21 @@ function createCustomerProfilingForm() {
                     value={salesmanModal.phone}
                     onChange={(e) => setSalesmanModal({ ...salesmanModal, phone: e.target.value })}
                     placeholder="Contoh: 081234567xxx"
-                    className="w-full bg-[#FAF9F6] border border-[#E5E5DF] rounded-xl px-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40] text-[#4A4A3C] font-mono"
+                    className="w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#1E293B] text-[#0F172A] font-mono"
                   />
                 </div>
 
                 <div className="flex gap-2.5 pt-2">
                   <button
                     type="submit"
-                    className="flex-1 bg-[#5A5A40] hover:bg-[#4A4A3C] text-[#FAF9F6] font-bold text-xs uppercase tracking-wider py-3 rounded-xl transition cursor-pointer"
+                    className="flex-1 bg-[#1E293B] hover:bg-[#0F172A] text-[#F8FAFC] font-bold text-xs uppercase tracking-wider py-3 rounded-xl transition cursor-pointer"
                   >
                     Simpan ke DB
                   </button>
                   <button
                     type="button"
                     onClick={() => setSalesmanModal({ ...salesmanModal, isOpen: false })}
-                    className="bg-[#E5E5DF]/50 hover:bg-[#E5E5DF] text-[#4A4A3C] font-bold text-xs uppercase px-4 py-3 rounded-xl transition duration-150 cursor-pointer"
+                    className="bg-[#E2E8F0]/50 hover:bg-[#E2E8F0] text-[#0F172A] font-bold text-xs uppercase px-4 py-3 rounded-xl transition duration-150 cursor-pointer"
                   >
                     Batal
                   </button>
@@ -6970,28 +8013,28 @@ function createCustomerProfilingForm() {
       {/* 2. PRODUCT MODAL */}
       <AnimatePresence>
         {productModal.isOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#4A4A3C]/30 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F172A]/30 backdrop-blur-xs">
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-[#FAF9F6] rounded-3xl p-6 w-full max-w-md border border-[#E5E5DF] shadow-2xl relative"
+              className="bg-[#F8FAFC] rounded-3xl p-6 w-full max-w-md border border-[#E2E8F0] shadow-2xl relative"
             >
               <button
                 onClick={() => setProductModal({ ...productModal, isOpen: false })}
-                className="absolute right-4 top-4 text-[#8C8C70] hover:text-[#4A4A3C] transition cursor-pointer"
+                className="absolute right-4 top-4 text-[#64748B] hover:text-[#0F172A] transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
 
-              <h3 className="text-base font-bold text-[#4A4A3C] font-serif italic uppercase mb-4 flex items-center gap-2">
-                <ShoppingBag className="w-5 h-5 text-[#5A5A40]" />
+              <h3 className="text-base font-bold text-[#0F172A] font-serif italic uppercase mb-4 flex items-center gap-2">
+                <ShoppingBag className="w-5 h-5 text-[#1E293B]" />
                 {productModal.id ? "Edit Data Produk" : "Tambah Produk Baru"}
               </h3>
 
               <form onSubmit={handleSaveProduct} className="flex flex-col gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+                  <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">
                     Nama SKU Produk (Kapital) *
                   </label>
                   <input
@@ -7000,12 +8043,12 @@ function createCustomerProfilingForm() {
                     value={productModal.name}
                     onChange={(e) => setProductModal({ ...productModal, name: e.target.value })}
                     placeholder="Contoh: TISSUE YO PIPI POP UP"
-                    className="w-full bg-[#FAF9F6] border border-[#E5E5DF] rounded-xl px-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40] text-[#4A4A3C] uppercase font-bold"
+                    className="w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#1E293B] text-[#0F172A] uppercase font-bold"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+                  <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">
                     Kode Singkat SKU
                   </label>
                   <input
@@ -7013,12 +8056,12 @@ function createCustomerProfilingForm() {
                     value={productModal.skuCode}
                     onChange={(e) => setProductModal({ ...productModal, skuCode: e.target.value })}
                     placeholder="Contoh: TJ-YPP-PU"
-                    className="w-full bg-[#FAF9F6] border border-[#E5E5DF] rounded-xl px-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40] text-[#4A4A3C]"
+                    className="w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#1E293B] text-[#0F172A]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+                  <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-1">
                     Kategori / Group Produk
                   </label>
                   <input
@@ -7026,21 +8069,21 @@ function createCustomerProfilingForm() {
                     value={productModal.category}
                     onChange={(e) => setProductModal({ ...productModal, category: e.target.value })}
                     placeholder="Contoh: Tissue, Baby Care, dsb."
-                    className="w-full bg-[#FAF9F6] border border-[#E5E5DF] rounded-xl px-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40] text-[#4A4A3C]"
+                    className="w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#1E293B] text-[#0F172A]"
                   />
                 </div>
 
                 <div className="flex gap-2.5 pt-2">
                   <button
                     type="submit"
-                    className="flex-1 bg-[#5A5A40] hover:bg-[#4A4A3C] text-[#FAF9F6] font-bold text-xs uppercase tracking-wider py-3 rounded-xl transition cursor-pointer"
+                    className="flex-1 bg-[#1E293B] hover:bg-[#0F172A] text-[#F8FAFC] font-bold text-xs uppercase tracking-wider py-3 rounded-xl transition cursor-pointer"
                   >
                     Simpan ke DB
                   </button>
                   <button
                     type="button"
                     onClick={() => setProductModal({ ...productModal, isOpen: false })}
-                    className="bg-[#E5E5DF]/50 hover:bg-[#E5E5DF] text-[#4A4A3C] font-bold text-xs uppercase px-4 py-3 rounded-xl transition duration-150 cursor-pointer"
+                    className="bg-[#E2E8F0]/50 hover:bg-[#E2E8F0] text-[#0F172A] font-bold text-xs uppercase px-4 py-3 rounded-xl transition duration-150 cursor-pointer"
                   >
                     Batal
                   </button>
@@ -7057,16 +8100,16 @@ function createCustomerProfilingForm() {
           const productToDelete = products.find(p => p.id === deleteConfirmProductId);
           if (!productToDelete) return null;
           return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#4A4A3C]/45 backdrop-blur-xs">
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F172A]/45 backdrop-blur-xs">
               <motion.div
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                className="bg-[#FAF9F6] rounded-3xl p-6 w-full max-w-md border border-[#E5E5DF] shadow-2xl relative"
+                className="bg-[#F8FAFC] rounded-3xl p-6 w-full max-w-md border border-[#E2E8F0] shadow-2xl relative"
               >
                 <button
                   onClick={() => setDeleteConfirmProductId(null)}
-                  className="absolute right-4 top-4 text-[#8C8C70] hover:text-[#4A4A3C] transition cursor-pointer"
+                  className="absolute right-4 top-4 text-[#64748B] hover:text-[#0F172A] transition cursor-pointer"
                   type="button"
                 >
                   <X className="w-5 h-5" />
@@ -7089,7 +8132,7 @@ function createCustomerProfilingForm() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-400 font-normal font-sans">Kode SKU:</span>
-                      <span className="font-mono bg-[#E5E5DF]/50 px-1.5 py-0.5 rounded text-[10px]">{productToDelete.skuCode || "-"}</span>
+                      <span className="font-mono bg-[#E2E8F0]/50 px-1.5 py-0.5 rounded text-[10px]">{productToDelete.skuCode || "-"}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-400 font-normal font-sans">Kategori:</span>
@@ -7101,7 +8144,7 @@ function createCustomerProfilingForm() {
                 <div className="flex gap-2.5">
                   <button
                     onClick={confirmDeleteProduct}
-                    className="flex-1 bg-rose-600 hover:bg-rose-700 text-[#FAF9F6] font-bold text-xs uppercase tracking-wider py-3 rounded-xl transition cursor-pointer shadow-sm shadow-rose-600/10"
+                    className="flex-1 bg-rose-600 hover:bg-rose-700 text-[#F8FAFC] font-bold text-xs uppercase tracking-wider py-3 rounded-xl transition cursor-pointer shadow-sm shadow-rose-600/10"
                     type="button"
                   >
                     Ya, Hapus Permanen
@@ -7109,7 +8152,7 @@ function createCustomerProfilingForm() {
                   <button
                     type="button"
                     onClick={() => setDeleteConfirmProductId(null)}
-                    className="bg-[#E5E5DF]/50 hover:bg-[#E5E5DF] text-[#4A4A3C] font-bold text-xs uppercase px-4 py-3 rounded-xl transition duration-150 cursor-pointer"
+                    className="bg-[#E2E8F0]/50 hover:bg-[#E2E8F0] text-[#0F172A] font-bold text-xs uppercase px-4 py-3 rounded-xl transition duration-150 cursor-pointer"
                   >
                     Batal
                   </button>
@@ -7126,16 +8169,16 @@ function createCustomerProfilingForm() {
           const customerToDelete = customers.find(c => c.id === deleteConfirmCustomerId);
           if (!customerToDelete) return null;
           return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#4A4A3C]/45 backdrop-blur-xs">
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F172A]/45 backdrop-blur-xs">
               <motion.div
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                className="bg-[#FAF9F6] rounded-3xl p-6 w-full max-w-md border border-[#E5E5DF] shadow-2xl relative"
+                className="bg-[#F8FAFC] rounded-3xl p-6 w-full max-w-md border border-[#E2E8F0] shadow-2xl relative"
               >
                 <button
                   onClick={() => setDeleteConfirmCustomerId(null)}
-                  className="absolute right-4 top-4 text-[#8C8C70] hover:text-[#4A4A3C] transition cursor-pointer"
+                  className="absolute right-4 top-4 text-[#64748B] hover:text-[#0F172A] transition cursor-pointer"
                   type="button"
                 >
                   <X className="w-5 h-5" />
@@ -7174,7 +8217,7 @@ function createCustomerProfilingForm() {
                 <div className="flex gap-2.5">
                   <button
                     onClick={confirmDeleteCustomer}
-                    className="flex-1 bg-rose-600 hover:bg-rose-700 text-[#FAF9F6] font-bold text-xs uppercase tracking-wider py-3 rounded-xl transition cursor-pointer shadow-sm shadow-rose-600/10"
+                    className="flex-1 bg-rose-600 hover:bg-rose-700 text-[#F8FAFC] font-bold text-xs uppercase tracking-wider py-3 rounded-xl transition cursor-pointer shadow-sm shadow-rose-600/10"
                     type="button"
                   >
                     Ya, Hapus Profiling
@@ -7182,7 +8225,7 @@ function createCustomerProfilingForm() {
                   <button
                     type="button"
                     onClick={() => setDeleteConfirmCustomerId(null)}
-                    className="bg-[#E5E5DF]/50 hover:bg-[#E5E5DF] text-[#4A4A3C] font-bold text-xs uppercase px-4 py-3 rounded-xl transition duration-150 cursor-pointer"
+                    className="bg-[#E2E8F0]/50 hover:bg-[#E2E8F0] text-[#0F172A] font-bold text-xs uppercase px-4 py-3 rounded-xl transition duration-150 cursor-pointer"
                   >
                     Batal
                   </button>
@@ -7199,16 +8242,16 @@ function createCustomerProfilingForm() {
           const reportToDelete = reports.find(r => r.id === deleteConfirmId);
           if (!reportToDelete) return null;
           return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#4A4A3C]/45 backdrop-blur-xs">
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F172A]/45 backdrop-blur-xs">
               <motion.div
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                className="bg-[#FAF9F6] rounded-3xl p-6 w-full max-w-md border border-[#E5E5DF] shadow-2xl relative"
+                className="bg-[#F8FAFC] rounded-3xl p-6 w-full max-w-md border border-[#E2E8F0] shadow-2xl relative"
               >
                 <button
                   onClick={() => setDeleteConfirmId(null)}
-                  className="absolute right-4 top-4 text-[#8C8C70] hover:text-[#4A4A3C] transition cursor-pointer"
+                  className="absolute right-4 top-4 text-[#64748B] hover:text-[#0F172A] transition cursor-pointer"
                   type="button"
                 >
                   <X className="w-5 h-5" />
@@ -7251,7 +8294,7 @@ function createCustomerProfilingForm() {
                 <div className="flex gap-2.5">
                   <button
                     onClick={confirmDeleteReport}
-                    className="flex-1 bg-rose-600 hover:bg-rose-700 text-[#FAF9F6] font-bold text-xs uppercase tracking-wider py-3 rounded-xl transition cursor-pointer shadow-sm shadow-rose-600/10"
+                    className="flex-1 bg-rose-600 hover:bg-rose-700 text-[#F8FAFC] font-bold text-xs uppercase tracking-wider py-3 rounded-xl transition cursor-pointer shadow-sm shadow-rose-600/10"
                     type="button"
                   >
                     Ya, Hapus Permanen
@@ -7259,7 +8302,7 @@ function createCustomerProfilingForm() {
                   <button
                     type="button"
                     onClick={() => setDeleteConfirmId(null)}
-                    className="bg-[#E5E5DF]/50 hover:bg-[#E5E5DF] text-[#4A4A3C] font-bold text-xs uppercase px-4 py-3 rounded-xl transition duration-150 cursor-pointer"
+                    className="bg-[#E2E8F0]/50 hover:bg-[#E2E8F0] text-[#0F172A] font-bold text-xs uppercase px-4 py-3 rounded-xl transition duration-150 cursor-pointer"
                   >
                     Batal
                   </button>
@@ -7271,9 +8314,9 @@ function createCustomerProfilingForm() {
       </AnimatePresence>
 
       {/* --- FOOTER DESCRIPTOR --- */}
-      <footer className="bg-[#FAF9F6] border-t border-[#E5E5DF] mt-12 py-8 text-center text-xs text-[#8C8C70]">
+      <footer className="bg-[#F8FAFC] border-t border-[#E2E8F0] mt-12 py-8 text-center text-xs text-[#64748B]">
         <div className="max-w-2xl mx-auto px-4 flex flex-col gap-2">
-          <p className="font-bold text-[#5A5A40] uppercase tracking-widest">
+          <p className="font-bold text-[#1E293B] uppercase tracking-widest">
             Audit KPI Sales • Auditor Portal
           </p>
           <p className="leading-relaxed">
