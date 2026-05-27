@@ -63,6 +63,8 @@ import {
 } from "./data";
 
 import { CustomerLoyaltyPortal } from "./components/CustomerLoyaltyPortal";
+import { NooSummary } from "./components/NooSummary";
+import { SalesPerformanceBulletChart } from "./components/SalesPerformanceBulletChart";
 
 const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
   try {
@@ -3524,11 +3526,15 @@ export default function App() {
                       <div className="relative">
                         <span className="absolute left-4 top-3.5 text-xs text-[#64748B] font-bold">Rp</span>
                         <input
-                          type="number"
-                          min="0"
+                          type="text"
+                          inputMode="numeric"
                           onFocus={(e) => e.target.value === "0" && e.target.select()}
-                          value={operationalCost}
-                          onChange={(e) => setOperationalCost(parseInt(e.target.value, 10) || 0)}
+                          value={operationalCost > 0 ? operationalCost.toLocaleString("id-ID") : ""}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            const cleaned = raw.replace(/Rp|\./g, '').trim();
+                            setOperationalCost(Number(cleaned) || 0);
+                          }}
                           className="w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#1E293B] focus:bg-white text-[#0F172A] font-semibold"
                           required
                         />
@@ -5734,6 +5740,21 @@ function createCustomerProfilingForm() {
 
                   {/* Dashboard dynamic grid cards */}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <NooSummary records={nooRecords} />
+                    <SalesPerformanceBulletChart 
+                      data={salesmen
+                        .filter(s => !["ARIS", "IMAM"].includes(((s.name) || "").toUpperCase().trim()))
+                        .map(salesman => {
+                        const salesmanReports = reports.filter(r => r.salesmanId === salesman.id);
+                        const actualTc = salesmanReports.reduce((sum, r) => sum + r.tc, 0);
+                        const goal = salesmanGoals.find(g => g.salesmanId === salesman.id);
+                        return {
+                          salesmanName: salesman.name,
+                          actual: actualTc,
+                          target: goal ? goal.tcTarget : 0,
+                          prevMonth: 0
+                        };
+                      })}/>
                     {(() => {
                       // Custom local filtered set
                       const targetDataset = targetDatasetForKpi.filter(r => {
