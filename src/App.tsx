@@ -121,7 +121,7 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
       sheet.appendRow([
         rep.id, rep.date, rep.salesmanName, rep.salesmanStatus || "MASUK", rep.replacedBySalesmanName || "", rep.cycle,
         rep.tc, rep.cp, rep.ec, rep.skuTotal,
-        rep.billsReceived, rep.billsTransfer || 0, rep.billsGiro || 0, rep.operationalCost, rep.notes || "",
+        rep.billsReceived, rep.billsTransfer || 0, rep.billsGiro || 0, Number(rep.operationalCost || 0), rep.notes || "",
         rep.createdAt, productsStr
       ]);
       
@@ -163,7 +163,7 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
         sheet.appendRow([
           rep.id, rep.date, rep.salesmanName, rep.salesmanStatus || "MASUK", rep.replacedBySalesmanName || "", rep.cycle,
           rep.tc, rep.cp, rep.ec, rep.skuTotal,
-          rep.billsReceived, rep.billsTransfer || 0, rep.billsGiro || 0, rep.operationalCost, rep.notes || "",
+          rep.billsReceived, rep.billsTransfer || 0, rep.billsGiro || 0, Number(rep.operationalCost || 0), rep.notes || "",
           rep.createdAt, productsStr
         ]);
       }
