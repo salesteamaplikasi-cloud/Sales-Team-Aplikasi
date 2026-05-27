@@ -1400,13 +1400,7 @@ export default function App() {
             cp: Number(item["CP (Kunjungan)"] || item.cp || 0),
             ec: Number(item["EC (Order)"] || item.ec || 0),
             skuTotal: Number(item["SKU Total"] || item.skuTotal || 0),
-            operationalCost: Number(
-              item["Biaya Operasional (Rp)"] || 
-              item["Biaya Operasioanal (Rp)"] || 
-              item["Biaya Operasional"] || 
-              item.operationalCost || 
-              0
-            ),
+            operationalCost: Number(item["Biaya Operasional (Rp)"] || item.operationalCost || 0),
             billsReceived: Number(item["Tagihan Bayar Tunai"] || item["Tagihan Didapat (Rp)"] || item.billsReceived || 0),
             billsTransfer: Number(item["Tagihan Bayar Transfer"] || item.billsTransfer || 0),
             billsGiro: Number(item["Tagihan Giro"] || item.billsGiro || 0),
