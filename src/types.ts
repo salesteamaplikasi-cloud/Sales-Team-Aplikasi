@@ -34,6 +34,15 @@ export interface Product {
   isActive: boolean;
 }
 
+export interface SalesmanGoal {
+  salesmanId: string;
+  monthString: string; // YYYY-MM
+  tcTarget: number;
+  cpTarget: number;
+  ecTarget: number;
+  skuTarget: number;
+}
+
 export interface KpiReportProduct {
   productId: string;
   productName: string;
@@ -73,4 +82,15 @@ export interface ImportParsingResult {
   billsGiro?: number;
   rawTextUsed: string;
   warnings: string[];
+}
+
+export interface NooRecord {
+  id: string;
+  salesmanId: string;
+  salesmanName: string;
+  date: string; // YYYY-MM-DD
+  warung: number;
+  store: number;
+  kiosk: number;
+  wholesaler: number;
 }

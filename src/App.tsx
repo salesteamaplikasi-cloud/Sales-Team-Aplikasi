@@ -6,7 +6,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
   User,
+  Users,
   Plus,
+  Send,
   Edit2,
   Trash2,
   UserPlus,
@@ -42,12 +44,13 @@ import {
   Clock,
   CalendarDays,
   CalendarRange,
-  LogOut
+  LogOut,
+  Target
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 import { RewardModal } from "./components/RewardModal";
-import { Salesman, Product, KpiReport, ImportParsingResult, RewardMerchant, CatalogHadiah } from "./types";
+import { Salesman, Product, KpiReport, ImportParsingResult, RewardMerchant, CatalogHadiah, SalesmanGoal, NooRecord } from "./types";
 import * as XLSX from "xlsx";
 import {
   INITIAL_SALESMEN,
@@ -479,6 +482,82 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify({ success: true, products: productsList })).setMimeType(ContentService.MimeType.JSON);
     }
 
+    // AKSI 11: Sinkronisasi NOO Salesman (New Outlet Opening)
+    if (data.action === "syncNoo") {
+      var sheetNoo = getOrCreateGlobalSheet(ss, "Log NOO Salesman", [
+        "ID Log", "Tanggal Log", "Nama Salesman", "ID Salesman", 
+        "Warung / Toko Kelontong", "Store / Toko Modern", 
+        "Kios Atap", "Grosir / Wholesaler", "Total Outlet Baru"
+      ], "#C01C42");
+      
+      var nooLogs = data.nooLogs || [];
+      
+      if (sheetNoo.getLastRow() > 1) {
+        sheetNoo.deleteRows(2, sheetNoo.getLastRow() - 1);
+      }
+      
+      for (var i = 0; i < nooLogs.length; i++) {
+        var n = nooLogs[i];
+        var warungVal = Number(n.warung || 0);
+        var storeVal = Number(n.store || 0);
+        var kioskVal = Number(n.kiosk || 0);
+        var wholesalerVal = Number(n.wholesaler || 0);
+        var totalHarian = warungVal + storeVal + kioskVal + wholesalerVal;
+        
+        sheetNoo.appendRow([
+          n.id,
+          n.date || "",
+          n.salesmanName || "",
+          n.salesmanId || "",
+          warungVal,
+          storeVal,
+          kioskVal,
+          wholesalerVal,
+          totalHarian
+        ]);
+      }
+      
+      autoResizeColumns(sheetNoo, 9);
+      
+      return ContentService.createTextOutput(JSON.stringify({ 
+        success: true, 
+        message: "Berhasil menyinkronkan " + nooLogs.length + " data log New Outlet Opening (NOO) ke tab '" + sheetNoo.getName() + "'"
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // AKSI 12: Tarik Data NOO Salesman
+    if (data.action === "getNoo") {
+      var sheetNoo = ss.getSheetByName("Log NOO Salesman");
+      if (!sheetNoo) {
+        return ContentService.createTextOutput(JSON.stringify({ success: true, nooLogs: [] })).setMimeType(ContentService.MimeType.JSON);
+      }
+      var lastRow = sheetNoo.getLastRow();
+      if (lastRow <= 1) {
+        return ContentService.createTextOutput(JSON.stringify({ success: true, nooLogs: [] })).setMimeType(ContentService.MimeType.JSON);
+      }
+      var headers = sheetNoo.getRange(1, 1, 1, sheetNoo.getLastColumn()).getValues()[0];
+      var rawData = sheetNoo.getRange(2, 1, lastRow - 1, sheetNoo.getLastColumn()).getValues();
+      var nooList = [];
+      for (var i = 0; i < rawData.length; i++) {
+        var rowVal = rawData[i];
+        var item = {};
+        for (var j = 0; j < headers.length; j++) {
+          var headerKey = headers[j];
+          var cellVal = rowVal[j];
+          if (cellVal instanceof Date) {
+            var yr = cellVal.getFullYear();
+            var mo = ("0" + (cellVal.getMonth() + 1)).slice(-2);
+            var dy = ("0" + cellVal.getDate()).slice(-2);
+            item[headerKey] = yr + "-" + mo + "-" + dy;
+          } else {
+            item[headerKey] = cellVal;
+          }
+        }
+        nooList.push(item);
+      }
+      return ContentService.createTextOutput(JSON.stringify({ success: true, nooLogs: nooList })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     return ContentService.createTextOutput(JSON.stringify({ 
       success: false, 
       message: "Operasi atau aksi '" + data.action + "' tidak dikenali." 
@@ -503,6 +582,7 @@ export default function App() {
 
   // --- STATE LIST MANAGEMENT ---
   const [salesmen, setSalesmen] = useState<Salesman[]>([]);
+  const [salesmanGoals, setSalesmanGoals] = useState<SalesmanGoal[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [reports, setReports] = useState<KpiReport[]>([]);
   
@@ -537,12 +617,77 @@ export default function App() {
   });
 
   // KPI Sales page filters
+  const [kpiTabMode, setKpiTabMode] = useState<"dashboard" | "goals">("dashboard");
+  const [goalSelectedMonth, setGoalSelectedMonth] = useState<string>(new Date().toISOString().substring(0, 7));
   const [kpiSalesFilter, setKpiSalesFilter] = useState<string>("ALL");
   const [kpiCycleFilter, setKpiCycleFilter] = useState<string>("ALL");
   const [kpiTimeFrame, setKpiTimeFrame] = useState<"all" | "daily" | "weekly" | "monthly">("all");
   const [kpiSelectedDate, setKpiSelectedDate] = useState<string>("ALL");
   const [kpiSelectedWeek, setKpiSelectedWeek] = useState<string>("ALL");
   const [kpiSelectedMonth, setKpiSelectedMonth] = useState<string>("ALL");
+
+  // New states for tracking specific salesman tabs (all, Aris, Imam) and NOO
+  const [kpiSalesmanTab, setKpiSalesmanTab] = useState<"all" | "Aris" | "Imam">("all");
+  const [nooRecords, setNooRecords] = useState<NooRecord[]>(() => {
+    try {
+      const stored = localStorage.getItem("KPI_DB_NOO_LOGS");
+      if (stored) return JSON.parse(stored);
+    } catch (_) {}
+    return [
+      {
+        id: "noo-aris-1",
+        salesmanId: "s-7",
+        salesmanName: "Aris",
+        date: "2026-05-25",
+        warung: 3,
+        store: 1,
+        kiosk: 2,
+        wholesaler: 0
+      },
+      {
+        id: "noo-aris-2",
+        salesmanId: "s-7",
+        salesmanName: "Aris",
+        date: "2026-05-26",
+        warung: 2,
+        store: 2,
+        kiosk: 1,
+        wholesaler: 1
+      },
+      {
+        id: "noo-imam-1",
+        salesmanId: "s-8",
+        salesmanName: "Imam",
+        date: "2026-05-25",
+        warung: 1,
+        store: 1,
+        kiosk: 3,
+        wholesaler: 0
+      },
+      {
+        id: "noo-imam-2",
+        salesmanId: "s-8",
+        salesmanName: "Imam",
+        date: "2026-05-26",
+        warung: 4,
+        store: 0,
+        kiosk: 0,
+        wholesaler: 1
+      }
+    ];
+  });
+
+  // Local input states for daily NOO logging form
+  const [newNooDate, setNewNooDate] = useState<string>(new Date().toISOString().substring(0, 10));
+  const [newNooWarung, setNewNooWarung] = useState<number>(0);
+  const [newNooStore, setNewNooStore] = useState<number>(0);
+  const [newNooKiosk, setNewNooKiosk] = useState<number>(0);
+  const [newNooWholesaler, setNewNooWholesaler] = useState<number>(0);
+
+  // Synchronize NOO with local storage
+  useEffect(() => {
+    localStorage.setItem("KPI_DB_NOO_LOGS", JSON.stringify(nooRecords));
+  }, [nooRecords]);
   
   // Riwayat Audit filters
   const [auditFilterStartDate, setAuditFilterStartDate] = useState<string>("");
@@ -803,7 +948,10 @@ export default function App() {
   const [isSyncingAll, setIsSyncingAll] = useState<boolean>(false);
   const [isSyncingSalesmen, setIsSyncingSalesmen] = useState<boolean>(false);
   const [isSyncingProducts, setIsSyncingProducts] = useState<boolean>(false);
+  const [isFetchingProducts, setIsFetchingProducts] = useState<boolean>(false);
   const [isSyncingLoyalty, setIsSyncingLoyalty] = useState<boolean>(false);
+  const [isSyncingNoo, setIsSyncingNoo] = useState<boolean>(false);
+  const [isFetchingNoo, setIsFetchingNoo] = useState<boolean>(false);
   const [isSubmittingReport, setIsSubmittingReport] = useState<boolean>(false);
   const [testConnectionStatus, setTestConnectionStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
   const [kpiDataSource, setKpiDataSource] = useState<"sheets" | "local">("sheets");
@@ -859,15 +1007,16 @@ export default function App() {
   useEffect(() => {
     // 1. Salesmen
     const storedSalesmen = localStorage.getItem("KPI_DB_SALESMEN");
-    if (storedSalesmen) {
+    if (storedSalesmen && JSON.parse(storedSalesmen).length > 0) {
       setSalesmen(JSON.parse(storedSalesmen));
     } else {
-      handleFetchSalesmenFromSheets();
+      localStorage.setItem("KPI_DB_SALESMEN", JSON.stringify(INITIAL_SALESMEN));
+      setSalesmen(INITIAL_SALESMEN);
     }
 
     // 2. Products
     const storedProducts = localStorage.getItem("KPI_DB_PRODUCTS");
-    if (storedProducts) {
+    if (storedProducts && JSON.parse(storedProducts).some((p: any) => p.id.startsWith("F-"))) {
       setProducts(JSON.parse(storedProducts));
     } else {
       localStorage.setItem("KPI_DB_PRODUCTS", JSON.stringify(INITIAL_PRODUCTS));
@@ -881,6 +1030,12 @@ export default function App() {
     } else {
       localStorage.setItem("KPI_DB_REPORTS", JSON.stringify(INITIAL_REPORTS));
       setReports(INITIAL_REPORTS);
+    }
+    
+    // 4. Salesman Goals
+    const storedGoals = localStorage.getItem("KPI_DB_SALESMAN_GOALS");
+    if (storedGoals) {
+      setSalesmanGoals(JSON.parse(storedGoals));
     }
   }, []);
 
@@ -896,10 +1051,23 @@ export default function App() {
     setSelectedCycle(autoDetectCycle(reportDate));
   }, [reportDate]);
 
-  // Auto-fetch spreadsheet reports when entering app or switching to KPI SALES tab
+  // Auto-fetch master data (Products SKU & Salesmen) whenever the URL configuration changes or app boots
   useEffect(() => {
-    if (sheetsScriptUrl && (activeTab === "kpisales" || activeTab === "reports" || activeTab === "sheets")) {
-      handleFetchReportsFromSheets(true); // quietly pull background spreadsheet data
+    if (sheetsScriptUrl) {
+      handleFetchProductsFromSheets(true); // quietly pull background master SKU products data
+      handleFetchSalesmenFromSheets(true); // quietly pull background master salesmen data
+    }
+  }, [sheetsScriptUrl]);
+
+  // Auto-fetch spreadsheet reports and NOO logs when switching tabs
+  useEffect(() => {
+    if (sheetsScriptUrl) {
+      if (activeTab === "kpisales" || activeTab === "reports" || activeTab === "sheets") {
+        handleFetchReportsFromSheets(true); // quietly pull background spreadsheet data
+        handleFetchNooFromSheets(true); // quietly pull background NOO logs
+      } else if (activeTab === "products") {
+        handleFetchProductsFromSheets(true); // quietly pull background products SKU data to stay fresh
+      }
     }
   }, [activeTab, sheetsScriptUrl]);
 
@@ -974,14 +1142,16 @@ export default function App() {
   const handleSubmitReport = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    let matchedSales: Salesman | null | undefined = undefined;
+
     if (!selectedSalesmanId) {
       showToast("Gagal mendeteksi Salesman. Silakan pilih salesman terlebih dahulu!", "error");
       return;
     }
 
-    const matchedSales = salesmen.find(s => s.id === selectedSalesmanId);
+    matchedSales = salesmen.find(s => s.id === selectedSalesmanId) || activeSalesman || (salesmen && salesmen.length > 0 ? salesmen[0] : null);
     if (!matchedSales) {
-      showToast("Salesman tidak terdaftar!", "error");
+      showToast("Salesman tidak terdaftar di database! Harap tambahkan salesman terlebih dahulu.", "error");
       return;
     }
 
@@ -1204,7 +1374,7 @@ export default function App() {
     }
   };
 
-  const handleFetchSalesmenFromSheets = async () => {
+  const handleFetchSalesmenFromSheets = async (silent = false) => {
     if (!sheetsScriptUrl) return;
     try {
       const response = await fetch(sheetsScriptUrl, {
@@ -1225,16 +1395,24 @@ export default function App() {
         }));
         setSalesmen(normalized);
         localStorage.setItem("KPI_DB_SALESMEN", JSON.stringify(normalized));
-        showToast("Berhasil menarik data dari tab 'Daftar Salesman' di Google Sheets!", "success");
+        if (!silent) {
+          showToast("Berhasil menarik data dari tab 'Daftar Salesman' di Google Sheets!", "success");
+        }
       }
     } catch (err) {
       console.error("Fetch salesmen error:", err);
-      showToast("Gagal menarik data Salesman. Pastikan tab sheet bernama 'Daftar Salesman' dan script aktif.", "error");
+      if (!silent) {
+        showToast("Gagal menarik data Salesman. Pastikan tab sheet bernama 'Daftar Salesman' dan script aktif.", "error");
+      }
     }
   };
 
-  const handleFetchProductsFromSheets = async () => {
-    if (!sheetsScriptUrl) return;
+  const handleFetchProductsFromSheets = async (silent = false) => {
+    if (!sheetsScriptUrl) {
+      if (!silent) showToast("Tolong masukkan URL Google Sheets Web App terlebih dahulu di tab 'Google Sheets'!", "error");
+      return;
+    }
+    setIsFetchingProducts(true);
     try {
       const response = await fetch(sheetsScriptUrl, {
         method: "POST",
@@ -1246,22 +1424,30 @@ export default function App() {
       const resData = JSON.parse(text);
       if (resData.success && resData.products) {
         const normalized: Product[] = resData.products.map((item: any) => ({
-          id: String(item["IDsku"] || item["ID Produk"] || item.id),
-          name: String(item["Nama SKU Produk"] || item["Nama Produk"] || item.name),
+          id: String(item["IDsku"] || item["ID Produk"] || item.id || ""),
+          name: String(item["Nama SKU Produk"] || item["Nama Produk"] || item.name || ""),
           category: String(item["Kategori"] || item["Kategori Produk"] || item.category || "-"),
-          price: Number(item["Harga Jual (Rp)"] || item["Harga Standar"] || item.price || 0),
-          skuCode: String(item["SKU Code"] || item.skuCode || "-"),
+          skuCode: String(item["SKU Code"] || item.skuCode || item["IDsku"] || ""),
           isActive: true
-        }));
+        })).filter((p: any) => p.name && p.name !== "Nama SKU Produk" && p.id && p.id !== "IDsku");
+        
         setProducts(normalized);
         localStorage.setItem("KPI_DB_PRODUCTS", JSON.stringify(normalized));
-        showToast("Berhasil menarik data Produk dari Google Sheets!", "success");
+        if (!silent) {
+          showToast(`Berhasil menarik ${normalized.length} data Produk dari Google Sheets!`, "success");
+        }
       } else {
-        showToast(`Gagal menarik data: ${resData.message || "Pastikan tab sheet bernama 'Daftar Produk SKU' atau 'Daftar Produk' sudah ada."}`, "error");
+        if (!silent) {
+          showToast(`Gagal menarik data: ${resData.message || "Pastikan tab sheet bernama 'Daftar Produk SKU' atau 'Daftar Produk' sudah ada."}`, "error");
+        }
       }
     } catch (err) {
       console.error("Fetch products error:", err);
-      showToast("Gagal menghubungi Google Apps Script untuk menarik data produk.", "error");
+      if (!silent) {
+        showToast("Gagal menghubungi Google Apps Script untuk menarik data produk.", "error");
+      }
+    } finally {
+      setIsFetchingProducts(false);
     }
   };
 
@@ -1347,13 +1533,14 @@ export default function App() {
     }
   };
 
-  const handleSyncProductsToSheets = async () => {
+  const handleSyncProductsToSheets = async (customProducts?: Product[], silent = false) => {
     if (!sheetsScriptUrl) {
-      showToast("Tolong masukkan URL Google Apps Script Web App terlebih dahulu!", "error");
+      if (!silent) showToast("Tolong masukkan URL Google Apps Script Web App terlebih dahulu!", "error");
       return;
     }
-    if (products.length === 0) {
-      showToast("Belum ada data SKU Produk untuk disinkronkan!", "error");
+    const targetProducts = customProducts || products;
+    if (targetProducts.length === 0) {
+      if (!silent) showToast("Belum ada data SKU Produk untuk disinkronkan!", "error");
       return;
     }
     
@@ -1367,19 +1554,25 @@ export default function App() {
         },
         body: JSON.stringify({
           action: "syncProducts",
-          products: products
+          products: targetProducts
         })
       });
       const text = await response.text();
       const resData = JSON.parse(text);
       if (resData.success) {
-        showToast(resData.message || "Sukses menyinkronkan SKU Produk!", "success");
+        if (!silent) {
+          showToast(resData.message || "Sukses menyinkronkan SKU Produk!", "success");
+        }
       } else {
-        showToast(`Gagal sinkronisasi SKU Produk: ${resData.message}`, "error");
+        if (!silent) {
+          showToast(`Gagal sinkronisasi SKU Produk: ${resData.message}`, "error");
+        }
       }
     } catch (err) {
       console.error("Products sync error:", err);
-      showToast("Gagal menyinkronkan data SKU Produk. Cek koneksi & deploy ulang!", "error");
+      if (!silent) {
+        showToast("Gagal menyinkronkan data SKU Produk. Cek koneksi & deploy ulang!", "error");
+      }
     } finally {
       setIsSyncingProducts(false);
     }
@@ -1423,6 +1616,105 @@ export default function App() {
       if (!silent) showToast("Gagal menyinkronkan data Loyalti & Profiling. Cek koneksi & deploy ulang!", "error");
     } finally {
       setIsSyncingLoyalty(false);
+    }
+  };
+
+  const handleSyncNooToSheets = async (customNoo?: NooRecord[], silent = false) => {
+    if (!sheetsScriptUrl) {
+      if (!silent) showToast("Tolong hubungkan dan masukkan URL Google Sheets Web App terlebih dahulu di tab 'Google Sheets'!", "error");
+      return;
+    }
+    const targetNoo = customNoo || nooRecords;
+    setIsSyncingNoo(true);
+    try {
+      const response = await fetch(sheetsScriptUrl, {
+        method: "POST",
+        mode: "cors",
+        headers: {
+          "Content-Type": "text/plain",
+        },
+        body: JSON.stringify({
+          action: "syncNoo",
+          nooLogs: targetNoo
+        })
+      });
+      const text = await response.text();
+      const resData = JSON.parse(text);
+      if (resData.success) {
+        if (!silent) {
+          showToast(resData.message || "Sukses menyinkronkan database NOO!", "success");
+        }
+      } else {
+        if (!silent) {
+          showToast(`Gagal sinkronisasi NOO: ${resData.message}`, "error");
+        }
+      }
+    } catch (err) {
+      console.error("NOO sync error:", err);
+      if (!silent) {
+        showToast("Gagal menyinkronkan data NOO ke Google Sheets. Cek koneksi & deploy ulang!", "error");
+      }
+    } finally {
+      setIsSyncingNoo(false);
+    }
+  };
+
+  const handleFetchNooFromSheets = async (silent = false) => {
+    if (!sheetsScriptUrl) {
+      if (!silent) {
+         showToast("Tolong hubungkan dan masukkan URL Google Sheets Web App terlebih dahulu di tab 'Google Sheets'!", "error");
+      }
+      return [];
+    }
+    setIsFetchingNoo(true);
+    try {
+      const response = await fetch(sheetsScriptUrl, {
+        method: "POST",
+        mode: "cors",
+        headers: {
+          "Content-Type": "text/plain",
+        },
+        body: JSON.stringify({
+          action: "getNoo"
+        })
+      });
+      const text = await response.text();
+      const resData = JSON.parse(text);
+      if (resData.success && resData.nooLogs) {
+        const rawList = resData.nooLogs;
+        const normalized: NooRecord[] = rawList.map((item: any, index: number) => {
+          return {
+            id: String(item["ID Log"] || item.id || `fetched-noo-${index}`),
+            date: String(item["Tanggal Log"] || item.date || ""),
+            salesmanName: String(item["Nama Salesman"] || item.salesmanName || ""),
+            salesmanId: String(item["ID Salesman"] || item.salesmanId || ""),
+            warung: Number(item["Warung / Toko Kelontong"] || item.warung || 0),
+            store: Number(item["Store / Toko Modern"] || item.store || 0),
+            kiosk: Number(item["Kios Atap"] || item.kiosk || 0),
+            wholesaler: Number(item["Grosir / Wholesaler"] || item.wholesaler || 0)
+          };
+        }).filter((n: any) => n.salesmanName && n.salesmanName !== "Nama Salesman");
+
+        setNooRecords(normalized);
+        localStorage.setItem("KPI_DB_NOO_LOGS", JSON.stringify(normalized));
+        if (!silent) {
+          showToast(`Berhasil menarik ${normalized.length} data log harian NOO dari Google Sheets!`, "success");
+        }
+        return normalized;
+      } else {
+        if (!silent) {
+          showToast(`Gagal menarik data NOO: ${resData.message || "Tolong periksa Apps Script Anda."}`, "error");
+        }
+        return [];
+      }
+    } catch (err) {
+      console.error("Fetch NOO error:", err);
+      if (!silent) {
+        showToast("Gagal menghubungi Google Sheet untuk menarik data NOO. Verifikasi koneksi & deploy ulang Apps Script!", "error");
+      }
+      return [];
+    } finally {
+      setIsFetchingNoo(false);
     }
   };
 
@@ -1679,6 +1971,27 @@ export default function App() {
     }
   };
 
+  const handleUpdateGoal = (salesmanId: string, monthString: string, field: keyof SalesmanGoal, value: number) => {
+    setSalesmanGoals(prev => {
+      const existingIdx = prev.findIndex(g => g.salesmanId === salesmanId && g.monthString === monthString);
+      let newGoals = [...prev];
+      if (existingIdx >= 0) {
+        newGoals[existingIdx] = { ...newGoals[existingIdx], [field]: value };
+      } else {
+        newGoals.push({
+          salesmanId,
+          monthString,
+          tcTarget: field === "tcTarget" ? value : 0,
+          cpTarget: field === "cpTarget" ? value : 0,
+          ecTarget: field === "ecTarget" ? value : 0,
+          skuTarget: field === "skuTarget" ? value : 0,
+        });
+      }
+      saveToLocalStorage("KPI_DB_SALESMAN_GOALS", newGoals);
+      return newGoals;
+    });
+  };
+
 
   // --- DB PRODUCT MANAGEMENT ---
 
@@ -1708,9 +2021,10 @@ export default function App() {
       return;
     }
 
+    let updated: Product[] = [];
     if (productModal.id) {
       // Edit
-      const updated = products.map(p => {
+      updated = products.map(p => {
         if (p.id === productModal.id) {
           return {
             ...p,
@@ -1726,20 +2040,33 @@ export default function App() {
       showToast(`Produk ${productModal.name.toUpperCase()} diperbarui!`);
     } else {
       // Create new
+      let nextNum = 1;
+      products.forEach(p => {
+        const match = p.id.match(/^F-(\d+)$/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num >= nextNum) nextNum = num + 1;
+        }
+      });
       const newP: Product = {
-        id: "p-" + Date.now(),
+        id: "F-" + nextNum,
         name: productModal.name.toUpperCase(),
         category: productModal.category,
-        skuCode: productModal.skuCode,
+        skuCode: productModal.skuCode || "F-" + nextNum,
         isActive: true
       };
-      const updated = [...products, newP];
+      updated = [...products, newP];
       setProducts(updated);
       saveToLocalStorage("KPI_DB_PRODUCTS", updated);
       showToast(`Produk ${newP.name} berhasil ditambahkan ke database!`);
     }
 
     setProductModal({ isOpen: false, name: "", category: "", skuCode: "" });
+
+    // Live sync to Sheets!
+    if (sheetsScriptUrl) {
+      handleSyncProductsToSheets(updated, true);
+    }
   };
 
   const handleDeleteProduct = (id: string, name: string) => {
@@ -1754,6 +2081,11 @@ export default function App() {
         setProducts(updated);
         saveToLocalStorage("KPI_DB_PRODUCTS", updated);
         showToast(`Produk ${p.name.toUpperCase()} telah dihapus dari database.`, "info");
+
+        // Live sync to Sheets!
+        if (sheetsScriptUrl) {
+          handleSyncProductsToSheets(updated, true);
+        }
       }
       setDeleteConfirmProductId(null);
     }
@@ -3212,6 +3544,51 @@ export default function App() {
                   </button>
                 </div>
               </div>
+
+              {/* SPREADSHEET SKU SYNC BAR */}
+              {sheetsScriptUrl ? (
+                <div className="bg-[#FAF9F6] border border-[#E5E5DF] rounded-3xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold shrink-0">
+                      <span className="text-lg">📦</span>
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-emerald-800 uppercase tracking-wider">Master Data Produk Fokus Terhubung</h4>
+                      <p className="text-[10px] text-[#8C8C70] font-bold mt-1">
+                        Auto-sync aktif: Setiap penambahan, pengubahan, atau penghapusan SKU Produk langsung terupdate di Google Sheets (Tab 'Daftar Produk SKU')!
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={() => handleFetchProductsFromSheets()}
+                      disabled={isFetchingProducts}
+                      className="flex-1 sm:flex-none bg-white hover:bg-gray-50 border border-[#E5E5DF] text-[#5A5A40] text-xs font-black px-4 py-2.5 rounded-2xl flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isFetchingProducts ? "animate-spin" : ""}`} />
+                      Tarik SKU Sheets
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSyncProductsToSheets(products, false)}
+                      disabled={isSyncingProducts}
+                      className="flex-1 sm:flex-none bg-rose-600 hover:bg-rose-700 text-white text-xs font-black px-4 py-2.5 rounded-2xl flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50 shadow-sm"
+                    >
+                      <Send className={`w-3.5 h-3.5 ${isSyncingProducts ? "animate-spin" : ""}`} />
+                      Kirim Manual
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-amber-50 border border-amber-200 rounded-3xl p-5 flex items-center gap-3">
+                  <span className="text-xl">⚠️</span>
+                  <div>
+                    <h4 className="text-xs font-black text-amber-800 uppercase">Spreadsheet Belum Terhubung</h4>
+                    <p className="text-[10px] text-amber-900/80">Silakan hubungkan URL Google Apps Script Anda di tab <strong className="text-rose-700">Google Sheets Linker</strong> untuk sinkronisasi otomatis harian SKU Produk.</p>
+                  </div>
+                </div>
+              )}
 
               {/* PRODUCT CARDS LIST */}
               <div className="bg-[#FAF9F6] rounded-3xl border border-[#E5E5DF] shadow-xs overflow-hidden">
@@ -4859,6 +5236,77 @@ function createCustomerProfilingForm() {
                 </div>
               </div>
 
+              {/* Salesman Focus Tabs */}
+              <div className="flex flex-wrap bg-[#E5E5DF]/35 p-1 rounded-2xl gap-1 w-full relative mb-6">
+                <button
+                  type="button"
+                  onClick={() => setKpiSalesmanTab("all")}
+                  className={`flex-grow sm:flex-grow-0 px-6 py-2.5 rounded-xl text-xs uppercase font-extrabold cursor-pointer transition flex justify-center items-center gap-2 ${
+                    kpiSalesmanTab === "all" 
+                      ? "bg-[#5A5A40] text-white shadow-xs" 
+                      : "text-[#5A5A40] hover:bg-[#E5E5DF]/50 font-bold"
+                  }`}
+                >
+                  <Users className="w-4 h-4" />
+                  Semua Salesman
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setKpiSalesmanTab("Aris")}
+                  className={`flex-grow sm:flex-grow-0 px-6 py-2.5 rounded-xl text-xs uppercase font-extrabold cursor-pointer transition flex justify-center items-center gap-2 ${
+                    kpiSalesmanTab === "Aris" 
+                      ? "bg-rose-600 text-white shadow-xs" 
+                      : "text-rose-900 hover:bg-rose-500/10 font-bold"
+                  }`}
+                >
+                  <User className="w-4 h-4" />
+                  Salesman: Aris
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setKpiSalesmanTab("Imam")}
+                  className={`flex-grow sm:flex-grow-0 px-6 py-2.5 rounded-xl text-xs uppercase font-extrabold cursor-pointer transition flex justify-center items-center gap-2 ${
+                    kpiSalesmanTab === "Imam" 
+                      ? "bg-rose-600 text-white shadow-xs" 
+                      : "text-rose-900 hover:bg-rose-500/10 font-bold"
+                  }`}
+                >
+                  <User className="w-4 h-4" />
+                  Salesman: Imam
+                </button>
+              </div>
+
+              {kpiSalesmanTab === "all" && (
+                <>
+                  <div className="flex bg-[#E5E5DF]/35 p-1 rounded-2xl gap-1 w-full sm:w-auto relative mb-6">
+                    <button
+                      type="button"
+                      onClick={() => setKpiTabMode("dashboard")}
+                      className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-xs uppercase font-black cursor-pointer transition flex justify-center items-center gap-2 ${
+                        kpiTabMode === "dashboard" 
+                          ? "bg-[#5A5A40] text-white shadow-xs" 
+                          : "text-[#5A5A40] hover:bg-[#E5E5DF]/50"
+                      }`}
+                    >
+                      <TrendingUp className="w-4 h-4" />
+                      Dashboard Visual
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setKpiTabMode("goals")}
+                      className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-xs uppercase font-black cursor-pointer transition flex justify-center items-center gap-2 ${
+                        kpiTabMode === "goals" 
+                          ? "bg-amber-600 text-white shadow-xs" 
+                          : "text-[#5A5A40] hover:bg-[#E5E5DF]/50"
+                      }`}
+                    >
+                      <Target className="w-4 h-4" />
+                      Target Bulan
+                    </button>
+                  </div>
+
+                  {kpiTabMode === "dashboard" && (
+                    <>
               {/* Filtering & Source Status Controls */}
               <div className="bg-[#FAF9F6] border border-[#E5E5DF] rounded-3xl p-6 space-y-4">
                 <div className="flex flex-wrap items-end justify-between gap-4">
@@ -5425,6 +5873,671 @@ function createCustomerProfilingForm() {
                   });
                 })()}
               </div>
+              </>
+              )}
+
+              {kpiTabMode === "goals" && (
+                <div className="bg-[#FAF9F6] border border-[#E5E5DF] rounded-3xl p-6 shadow-xs animate-in fade-in slide-in-from-bottom-4 space-y-6">
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#E5E5DF] pb-4">
+                    <h3 className="text-base font-black text-[#5A5A40] uppercase tracking-wider flex items-center gap-2">
+                      <Target className="w-5 h-5 text-amber-600" />
+                      Manajemen Target KPI Bulanan
+                    </h3>
+                    <div className="w-full sm:w-64">
+                      <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1">Pilih Bulan Target</label>
+                      <input 
+                        type="month" 
+                        value={goalSelectedMonth}
+                        onChange={(e) => setGoalSelectedMonth(e.target.value)}
+                        className="w-full bg-white border border-[#E5E5DF] px-3 py-2 text-sm font-bold text-[#4A4A3C] rounded-xl focus:outline-hidden focus:border-amber-400"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b-2 border-[#E5E5DF]">
+                          <th className="py-3 px-2 text-[10px] font-black text-[#5A5A40] uppercase">Nama Salesman</th>
+                          <th className="py-3 px-2 text-[10px] font-black text-[#5A5A40] uppercase">Target TC</th>
+                          <th className="py-3 px-2 text-[10px] font-black text-[#5A5A40] uppercase">Target CP</th>
+                          <th className="py-3 px-2 text-[10px] font-black text-[#5A5A40] uppercase">Target EC</th>
+                          <th className="py-3 px-2 text-[10px] font-black text-[#5A5A40] uppercase">Target SKU</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {salesmen.filter(s => s.isActive).map(s => {
+                          const goal = salesmanGoals.find(g => g.salesmanId === s.id && g.monthString === goalSelectedMonth) || {
+                            tcTarget: 0,
+                            cpTarget: 0,
+                            ecTarget: 0,
+                            skuTarget: 0
+                          };
+
+                          let actualTc = 0;
+                          let actualCp = 0;
+                          let actualEc = 0;
+                          let actualSku = 0;
+
+                          targetDatasetForKpi.forEach((r: any) => {
+                            if (r.salesmanName.toUpperCase().trim() === s.name.toUpperCase().trim()) {
+                              if (r.date && r.date.startsWith(goalSelectedMonth)) {
+                                actualTc += Number(r.tc || 0);
+                                actualCp += Number(r.cp || 0);
+                                actualEc += Number(r.ec || 0);
+                                actualSku += Number(r.skuTotal || 0);
+                              }
+                            }
+                          });
+
+                          const tcPct = goal.tcTarget > 0 ? (actualTc / goal.tcTarget) * 100 : 0;
+                          const cpPct = goal.cpTarget > 0 ? (actualCp / goal.cpTarget) * 100 : 0;
+                          const ecPct = goal.ecTarget > 0 ? (actualEc / goal.ecTarget) * 100 : 0;
+                          const skuPct = goal.skuTarget > 0 ? (actualSku / goal.skuTarget) * 100 : 0;
+                          
+                          return (
+                            <tr key={s.id} className="border-b border-[#E5E5DF]/50 hover:bg-[#E5E5DF]/20 transition-colors">
+                              <td className="py-3 px-2 font-bold text-[#4A4A3C] text-sm uppercase align-top pt-4">{s.name}</td>
+                              
+                              <td className="py-3 px-2 align-top">
+                                <div className="space-y-2">
+                                  <input 
+                                    type="number" min="0" 
+                                    className="w-full bg-white border border-[#E5E5DF] rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-center focus:outline-hidden focus:border-amber-400"
+                                    value={goal.tcTarget}
+                                    placeholder="Target"
+                                    onChange={(e) => handleUpdateGoal(s.id, goalSelectedMonth, "tcTarget", parseInt(e.target.value) || 0)}
+                                    onFocus={(e) => e.target.value === "0" && e.target.select()}
+                                  />
+                                  <div className="flex justify-between text-[9px] font-black uppercase text-[#8C8C70]">
+                                    <span>Aktual: {actualTc}</span>
+                                    <span className={tcPct >= 100 ? "text-emerald-600" : tcPct > 0 ? "text-amber-600" : ""}>{tcPct.toFixed(0)}%</span>
+                                  </div>
+                                  <div className="w-full h-1.5 bg-[#E5E5DF]/60 rounded-full overflow-hidden">
+                                    <div style={{ width: `${Math.min(tcPct, 100)}%` }} className={`h-full ${tcPct >= 100 ? "bg-emerald-500" : "bg-amber-500"}`} />
+                                  </div>
+                                </div>
+                              </td>
+
+                              <td className="py-3 px-2 align-top">
+                                <div className="space-y-2">
+                                  <input 
+                                    type="number" min="0" 
+                                    className="w-full bg-white border border-[#E5E5DF] rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-center focus:outline-hidden focus:border-amber-400"
+                                    value={goal.cpTarget}
+                                    placeholder="Target"
+                                    onChange={(e) => handleUpdateGoal(s.id, goalSelectedMonth, "cpTarget", parseInt(e.target.value) || 0)}
+                                    onFocus={(e) => e.target.value === "0" && e.target.select()}
+                                  />
+                                  <div className="flex justify-between text-[9px] font-black uppercase text-[#8C8C70]">
+                                    <span>Aktual: {actualCp}</span>
+                                    <span className={cpPct >= 100 ? "text-emerald-600" : cpPct > 0 ? "text-amber-600" : ""}>{cpPct.toFixed(0)}%</span>
+                                  </div>
+                                  <div className="w-full h-1.5 bg-[#E5E5DF]/60 rounded-full overflow-hidden">
+                                    <div style={{ width: `${Math.min(cpPct, 100)}%` }} className={`h-full ${cpPct >= 100 ? "bg-emerald-500" : "bg-amber-500"}`} />
+                                  </div>
+                                </div>
+                              </td>
+
+                              <td className="py-3 px-2 align-top">
+                                <div className="space-y-2">
+                                  <input 
+                                    type="number" min="0" 
+                                    className="w-full bg-white border border-[#E5E5DF] rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-center focus:outline-hidden focus:border-amber-400"
+                                    value={goal.ecTarget}
+                                    placeholder="Target"
+                                    onChange={(e) => handleUpdateGoal(s.id, goalSelectedMonth, "ecTarget", parseInt(e.target.value) || 0)}
+                                    onFocus={(e) => e.target.value === "0" && e.target.select()}
+                                  />
+                                  <div className="flex justify-between text-[9px] font-black uppercase text-[#8C8C70]">
+                                    <span>Aktual: {actualEc}</span>
+                                    <span className={ecPct >= 100 ? "text-emerald-600" : ecPct > 0 ? "text-amber-600" : ""}>{ecPct.toFixed(0)}%</span>
+                                  </div>
+                                  <div className="w-full h-1.5 bg-[#E5E5DF]/60 rounded-full overflow-hidden">
+                                    <div style={{ width: `${Math.min(ecPct, 100)}%` }} className={`h-full ${ecPct >= 100 ? "bg-emerald-500" : "bg-amber-500"}`} />
+                                  </div>
+                                </div>
+                              </td>
+
+                              <td className="py-3 px-2 align-top">
+                                <div className="space-y-2">
+                                  <input 
+                                    type="number" min="0" 
+                                    className="w-full bg-white border border-[#E5E5DF] rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-center focus:outline-hidden focus:border-amber-400"
+                                    value={goal.skuTarget}
+                                    placeholder="Target"
+                                    onChange={(e) => handleUpdateGoal(s.id, goalSelectedMonth, "skuTarget", parseInt(e.target.value) || 0)}
+                                    onFocus={(e) => e.target.value === "0" && e.target.select()}
+                                  />
+                                  <div className="flex justify-between text-[9px] font-black uppercase text-[#8C8C70]">
+                                    <span>Aktual: {actualSku}</span>
+                                    <span className={skuPct >= 100 ? "text-emerald-600" : skuPct > 0 ? "text-amber-600" : ""}>{skuPct.toFixed(0)}%</span>
+                                  </div>
+                                  <div className="w-full h-1.5 bg-[#E5E5DF]/60 rounded-full overflow-hidden">
+                                    <div style={{ width: `${Math.min(skuPct, 100)}%` }} className={`h-full ${skuPct >= 100 ? "bg-emerald-500" : "bg-amber-500"}`} />
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {salesmen.filter(s => s.isActive).length === 0 && (
+                          <tr><td colSpan={5} className="py-4 text-center text-xs text-[#8C8C70]">Belum ada salesman aktif didatabase.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+                </>
+              )}
+
+              {kpiSalesmanTab !== "all" && (() => {
+                const activeSalesmanName = kpiSalesmanTab === "Aris" ? "Aris" : "Imam";
+                const foundSalesman = salesmen.find(s => s.name.toLowerCase() === activeSalesmanName.toLowerCase()) || {
+                  id: kpiSalesmanTab === "Aris" ? "s-7" : "s-8",
+                  name: activeSalesmanName,
+                  area: kpiSalesmanTab === "Aris" ? "Semarang" : "Demak",
+                  phone: kpiSalesmanTab === "Aris" ? "084567890123" : "08567890124",
+                  isActive: true
+                };
+
+                // filter reports by that salesman
+                const salesmanReports = targetDatasetForKpi.filter(
+                  r => r.salesmanName.toUpperCase().trim() === activeSalesmanName.toUpperCase()
+                );
+
+                const sTc = salesmanReports.reduce((sum, r) => sum + Number(r.tc || 0), 0);
+                const sCp = salesmanReports.reduce((sum, r) => sum + Number(r.cp || 0), 0);
+                const sEc = salesmanReports.reduce((sum, r) => sum + Number(r.ec || 0), 0);
+                const sSku = salesmanReports.reduce((sum, r) => sum + Number(r.skuTotal || 0), 0);
+                const sCost = salesmanReports.reduce((sum, r) => sum + Number(r.operationalCost || 0), 0);
+                const sBill = salesmanReports.reduce((sum, r) => sum + Number(r.billsReceived || 0) + Number(r.billsTransfer || 0) + Number(r.billsGiro || 0), 0);
+
+                const sCpPct = sTc > 0 ? (sCp / sTc) * 100 : 0;
+                const sEcPct = sCp > 0 ? (sEc / sCp) * 105 : 0; // standard scaling for aesthetics
+                const sCntDays = salesmanReports.length || 1;
+                const sTargetSku = Math.round(112.5 * sCntDays);
+                const sSkuPct = sTargetSku > 0 ? (sSku / sTargetSku) * 100 : 0;
+
+                const isLayak = sCpPct >= 80 && sEcPct >= 40;
+
+                // Tracking NOO
+                const sNooLogs = nooRecords.filter(
+                  n => n.salesmanName.toLowerCase().trim() === activeSalesmanName.toLowerCase()
+                );
+                const totalWarung = sNooLogs.reduce((sum, n) => sum + n.warung, 0);
+                const totalStore = sNooLogs.reduce((sum, n) => sum + n.store, 0);
+                const totalKiosk = sNooLogs.reduce((sum, n) => sum + n.kiosk, 0);
+                const totalWholesaler = sNooLogs.reduce((sum, n) => sum + n.wholesaler, 0);
+                const totalNooCount = totalWarung + totalStore + totalKiosk + totalWholesaler;
+
+                const handleAddNoo = (e: React.FormEvent) => {
+                  e.preventDefault();
+                  const newRecord: NooRecord = {
+                    id: `noo-${Date.now()}`,
+                    salesmanId: foundSalesman.id,
+                    salesmanName: foundSalesman.name,
+                    date: newNooDate,
+                    warung: newNooWarung,
+                    store: newNooStore,
+                    kiosk: newNooKiosk,
+                    wholesaler: newNooWholesaler
+                  };
+                  const updatedRecords = [newRecord, ...nooRecords];
+                  setNooRecords(updatedRecords);
+                  showToast(`Berhasil menyimpan log NOO harian untuk ${foundSalesman.name}!`, "success");
+                  // reset input counts
+                  setNewNooWarung(0);
+                  setNewNooStore(0);
+                  setNewNooKiosk(0);
+                  setNewNooWholesaler(0);
+
+                  if (sheetsScriptUrl) {
+                    handleSyncNooToSheets(updatedRecords);
+                  }
+                };
+
+                const handleDeleteNoo = (id: string) => {
+                  const updatedRecords = nooRecords.filter(n => n.id !== id);
+                  setNooRecords(updatedRecords);
+                  showToast("Record NOO berhasil dihapus", "info");
+
+                  if (sheetsScriptUrl) {
+                    handleSyncNooToSheets(updatedRecords, true);
+                  }
+                };
+
+                return (
+                  <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    
+                    {/* PROFILE HERO CARD */}
+                    <div className="bg-[#FAF9F6] border border-[#E5E5DF] rounded-3xl p-6 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-full bg-rose-600 text-white flex items-center justify-center font-serif text-2xl font-black italic shadow-md shrink-0">
+                          {activeSalesmanName.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-xl font-serif font-black text-[#4A4A3C] italic">{activeSalesmanName}</h3>
+                            <span className="bg-emerald-100 text-emerald-800 text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wide">
+                              AKTIF
+                            </span>
+                          </div>
+                          <p className="text-xs text-[#8C8C70] font-bold flex items-center gap-2 mt-1">
+                            <MapPin className="w-3.5 h-3.5 text-rose-500" /> Area: {foundSalesman.area || "Semarang"}
+                            <span className="text-[#E5E5DF]">|</span> Telp: {foundSalesman.phone || "-"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <span className={`px-4 py-2 rounded-2xl text-xs font-black uppercase text-center tracking-wider shrink-0 ${
+                          isLayak 
+                            ? "bg-emerald-100 text-emerald-800 border border-emerald-200" 
+                            : "bg-rose-100 text-rose-800 border border-rose-200"
+                        }`}>
+                          KAPASITAS: {isLayak ? "LAYAK KPI" : "TIDAK LAYAK"}
+                        </span>
+                        <div className="bg-[#5A5A40]/10 text-[#5A5A40] text-xs font-black px-4 py-2 rounded-2xl flex items-center gap-2">
+                          <Calendar className="w-4 h-4" />
+                          {sCntDays} Hari Kerja Audit
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* SPREADSHEET NOO SYNC BAR */}
+                    {sheetsScriptUrl ? (
+                      <div className="bg-[#FAF9F6] border border-[#E5E5DF] rounded-3xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold shrink-0">
+                            <span className="text-lg">📊</span>
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-black text-emerald-800 uppercase tracking-wider">Koneksi Spreadsheet Aktif</h4>
+                            <p className="text-[10px] text-[#8C8C70] font-bold mt-1">
+                              Auto-sync aktif: Setiap penambahan atau penghapusan log NOO langsung terkirim ke Google Sheets!
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 w-full sm:w-auto">
+                          <button
+                            type="button"
+                            onClick={() => handleFetchNooFromSheets()}
+                            disabled={isFetchingNoo}
+                            className="flex-1 sm:flex-none bg-white hover:bg-gray-50 border border-[#E5E5DF] text-[#5A5A40] text-xs font-black px-4 py-2.5 rounded-2xl flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
+                          >
+                            <RefreshCw className={`w-3.5 h-3.5 ${isFetchingNoo ? "animate-spin" : ""}`} />
+                            Tarik Data Sheets
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSyncNooToSheets()}
+                            disabled={isSyncingNoo}
+                            className="flex-1 sm:flex-none bg-rose-600 hover:bg-rose-700 text-white text-xs font-black px-4 py-2.5 rounded-2xl flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50 shadow-sm"
+                          >
+                            <Send className={`w-3.5 h-3.5 ${isSyncingNoo ? "animate-spin" : ""}`} />
+                            Kirim Manual
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-amber-50 border border-amber-200 rounded-3xl p-5 flex items-center gap-3">
+                        <span className="text-xl">⚠️</span>
+                        <div>
+                          <h4 className="text-xs font-black text-amber-800 uppercase">Spreadsheet Belum Terhubung</h4>
+                          <p className="text-[10px] text-amber-900/80">Silakan hubungkan URL Google Apps Script Anda di tab <strong className="text-rose-700">Google Sheets Linker</strong> untuk sinkronisasi otomatis harian NOO.</p>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      {/* COLUMN 1 & 2: KPI RESULTS & METRICS */}
+                      <div className="lg:col-span-2 space-y-6">
+                        
+                        {/* THE METRICS SUMMARY GRID */}
+                        <div className="bg-[#FAF9F6] border border-[#E5E5DF] rounded-3xl p-6 shadow-xs space-y-4">
+                          <h4 className="text-xs font-black text-[#5A5A40] uppercase tracking-wider flex items-center gap-1.5 border-b border-[#E5E5DF] pb-3">
+                            <TrendingUp className="w-4 h-4 text-rose-600" />
+                            REKAP METRIC KPI - {activeSalesmanName.toUpperCase()}
+                          </h4>
+                          
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                            <div className="bg-white border border-[#E5E5DF]/50 rounded-2xl p-3">
+                              <span className="block text-[9px] font-bold text-[#8C8C70] uppercase">Total Call (TC)</span>
+                              <span className="text-xl font-bold font-mono text-[#4A4A3C] block mt-1">{sTc}</span>
+                            </div>
+                            <div className="bg-white border border-[#E5E5DF]/50 rounded-2xl p-3">
+                              <span className="block text-[9px] font-bold text-[#8C8C70] uppercase">Call Plan (CP)</span>
+                              <span className="text-xl font-bold font-mono text-[#4A4A3C] block mt-1">{sCp}</span>
+                            </div>
+                            <div className="bg-white border border-[#E5E5DF]/50 rounded-2xl p-3">
+                              <span className="block text-[9px] font-bold text-[#8C8C70] uppercase">Effective (EC)</span>
+                              <span className="text-xl font-bold font-mono text-[#4A4A3C] block mt-1">{sEc}</span>
+                            </div>
+                            <div className="bg-white border border-[#E5E5DF]/50 rounded-2xl p-3">
+                              <span className="block text-[9px] font-bold text-[#8C8C70] uppercase">SKU Terjual</span>
+                              <span className="text-xl font-bold font-mono text-[#4A4A3C] block mt-1">{sSku}</span>
+                            </div>
+                          </div>
+
+                          <div className="space-y-4 pt-2">
+                            {/* CP/TC PROGRESS */}
+                            <div>
+                              <div className="flex justify-between text-xs font-bold text-[#5A5A40] mb-1">
+                                <span>PENCAPAIAN CALL PLAN (TC terhadap CP)</span>
+                                <span className={`font-mono text-xs font-black ${sCpPct >= 80 ? "text-emerald-700" : "text-rose-700"}`}>
+                                  {sCpPct.toFixed(1)}% {sCpPct >= 80 ? "✓ (Target >= 80%)" : "✗ (Kurang)"}
+                                </span>
+                              </div>
+                              <div className="w-full h-3 bg-[#E5E5DF]/50 rounded-full overflow-hidden">
+                                <div style={{ width: `${Math.min(sCpPct, 100)}%` }} className={`h-full transition-all duration-300 ${sCpPct >= 80 ? "bg-emerald-500" : "bg-rose-500"}`} />
+                              </div>
+                            </div>
+
+                            {/* EC/CP PROGRESS */}
+                            <div>
+                              <div className="flex justify-between text-xs font-bold text-[#5A5A40] mb-1">
+                                <span>EFFECTIVE CALL RATE (EC terhadap CP)</span>
+                                <span className={`font-mono text-xs font-black ${sEcPct >= 40 ? "text-emerald-700" : "text-rose-700"}`}>
+                                  {sEcPct.toFixed(1)}% {sEcPct >= 40 ? "✓ (Target >= 40%)" : "✗ (Kurang)"}
+                                </span>
+                              </div>
+                              <div className="w-full h-3 bg-[#E5E5DF]/50 rounded-full overflow-hidden">
+                                <div style={{ width: `${Math.min(sEcPct, 100)}%` }} className={`h-full transition-all duration-300 ${sEcPct >= 40 ? "bg-emerald-500" : "bg-rose-500"}`} />
+                              </div>
+                            </div>
+
+                            {/* SKU PROGRESS */}
+                            <div>
+                              <div className="flex justify-between text-xs font-bold text-[#5A5A40] mb-1">
+                                <span>SKU AKUMULASI PENCAPAIAN ({sSku} Sku/Target {sTargetSku} Sku)</span>
+                                <span className="font-mono text-xs font-black text-amber-700">{sSkuPct.toFixed(1)}%</span>
+                              </div>
+                              <div className="w-full h-3 bg-[#E5E5DF]/50 rounded-full overflow-hidden">
+                                <div style={{ width: `${Math.min(sSkuPct, 100)}%` }} className="h-full bg-amber-500 transition-all duration-300" />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-dashed border-[#E5E5DF] text-xs">
+                            <div className="bg-[#E5E5DF]/20 p-3 rounded-2xl">
+                              <span className="block text-[10px] text-[#8C8C70] font-bold uppercase">BIAYA OPERASIONAL TOTAL:</span>
+                              <span className="text-[#4A4A3C] font-mono font-black text-sm block mt-0.5">Rp {sCost.toLocaleString("id-ID")}</span>
+                            </div>
+                            <div className="bg-[#E5E5DF]/20 p-3 rounded-2xl">
+                              <span className="block text-[10px] text-[#8C8C70] font-bold uppercase">TOTAL PENAGIHAN:</span>
+                              <span className="text-indigo-800 font-mono font-black text-sm block mt-0.5">Rp {sBill.toLocaleString("id-ID")}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* NOO TRACKING SECTION */}
+                        <div className="bg-[#FAF9F6] border border-[#E5E5DF] rounded-3xl p-6 shadow-sm space-y-4">
+                          <div className="flex justify-between items-center border-b border-[#E5E5DF] pb-3">
+                            <h4 className="text-xs font-black text-rose-700 uppercase tracking-wider flex items-center gap-1.5">
+                              <Crown className="w-4 h-4 text-rose-600 animate-bounce" />
+                              NEW OUTLET OPENING (NOO) HARIAN
+                            </h4>
+                            <span className="text-[10px] font-black bg-rose-100 text-rose-800 px-3 py-1 rounded-full uppercase">
+                              Cumulative: {totalNooCount} Outlet
+                            </span>
+                          </div>
+
+                          {/* Cumulative NOO Grid */}
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-3 text-center">
+                              <span className="block text-[9px] font-bold text-amber-800 uppercase">Warung / Toko Kelontong</span>
+                              <span className="text-2xl font-black font-mono text-amber-900 block mt-1">{totalWarung}</span>
+                            </div>
+                            <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-3 text-center">
+                              <span className="block text-[9px] font-bold text-rose-800 uppercase">Store / Toko Modern</span>
+                              <span className="text-2xl font-black font-mono text-rose-900 block mt-1">{totalStore}</span>
+                            </div>
+                            <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-3 text-center">
+                              <span className="block text-[9px] font-bold text-indigo-800 uppercase">Kios / Outlet Atap</span>
+                              <span className="text-2xl font-black font-mono text-[#312E81] block mt-1">{totalKiosk}</span>
+                            </div>
+                            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-3 text-center">
+                              <span className="block text-[9px] font-bold text-emerald-800 uppercase">Grosir / Wholesaler</span>
+                              <span className="text-2xl font-black font-mono text-[#064E3B] block mt-1">{totalWholesaler}</span>
+                            </div>
+                          </div>
+
+                          {/* Historical records table */}
+                          <div className="space-y-4">
+                            <span className="text-[10px] font-extrabold text-[#8C8C70] uppercase block">Riwayat Log NOO {foundSalesman.name}:</span>
+                            {sNooLogs.length === 0 ? (
+                              <div className="text-center py-6 border border-dashed border-[#E5E5DF] rounded-2xl text-xs text-[#8C8C70] font-bold">
+                                Tidak ada log harian NOO. Silakan tambahkan pada form di samping kanan.
+                              </div>
+                            ) : (
+                              <div className="overflow-x-auto border border-[#E5E5DF] rounded-2xl bg-white">
+                                <table className="w-full text-left border-collapse text-xs">
+                                  <thead>
+                                    <tr className="bg-[#E5E5DF]/20 border-b border-[#E5E5DF] text-[9px] font-black uppercase text-[#8C8C70]">
+                                      <th className="p-2.5">Tanggal</th>
+                                      <th className="p-2.5 text-center">Warung</th>
+                                      <th className="p-2.5 text-center">Toko/Store</th>
+                                      <th className="p-2.5 text-center">Kios</th>
+                                      <th className="p-2.5 text-center">Grosir</th>
+                                      <th className="p-2.5 text-center">Total harian</th>
+                                      <th className="p-2.5 text-center">Aksi</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-[#E5E5DF]/30">
+                                    {sNooLogs.map(log => {
+                                      const rowSum = log.warung + log.store + log.kiosk + log.wholesaler;
+                                      return (
+                                        <tr key={log.id} className="hover:bg-[#E5E5DF]/10 transition-colors bg-white text-[#4A4A3C]">
+                                          <td className="p-2.5 font-bold font-mono">{log.date}</td>
+                                          <td className="p-2.5 text-center font-semibold text-amber-700">{log.warung}</td>
+                                          <td className="p-2.5 text-center font-semibold text-rose-700">{log.store}</td>
+                                          <td className="p-2.5 text-center font-semibold text-indigo-700">{log.kiosk}</td>
+                                          <td className="p-2.5 text-center font-semibold text-emerald-700">{log.wholesaler}</td>
+                                          <td className="p-2.5 text-center font-black bg-rose-50 text-rose-900">{rowSum}</td>
+                                          <td className="p-2.5 text-center">
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDeleteNoo(log.id)}
+                                              className="p-1 hover:bg-rose-100 rounded-lg text-rose-600 transition cursor-pointer"
+                                              title="Hapus baris harian ini"
+                                            >
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                      </div>
+
+                      {/* COLUMN 3: NOO INPUT CONTROL PANEL */}
+                      <div>
+                        <div className="bg-[#FAF9F6] border border-[#E5E5DF] rounded-3xl p-6 shadow-sm space-y-4 stick top-6">
+                          <h4 className="text-sm font-bold text-[#4A4A3C] uppercase tracking-wider flex items-center gap-1.5 border-b border-[#E5E5DF] pb-3">
+                            <Plus className="w-4 h-4 text-rose-600 animate-pulse" />
+                            LOG NOO HARIAN (+ HARIAN)
+                          </h4>
+                          <p className="text-[10px] text-[#8C8C70] leading-relaxed uppercase font-bold">
+                            Catat pembukaan outlet baru salesman <strong className="text-rose-800">{activeSalesmanName}</strong> secara harian ke dalam database.
+                          </p>
+
+                          <form onSubmit={handleAddNoo} className="space-y-4">
+                            <div>
+                              <label className="block text-[9px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+                                Tanggal Log Outlet
+                              </label>
+                              <input
+                                type="date"
+                                required
+                                value={newNooDate}
+                                onChange={(e) => setNewNooDate(e.target.value)}
+                                className="w-full bg-white border border-[#E5E5DF] text-[#4A4A3C] font-black text-xs px-3 py-2.5 rounded-xl focus:outline-hidden"
+                              />
+                            </div>
+
+                            {/* WARUNG */}
+                            <div className="bg-white border border-[#E5E5DF] rounded-2xl p-3 flex items-center justify-between">
+                              <div>
+                                <span className="text-[10px] font-bold text-amber-800 block uppercase leading-none font-sans">Warung Kelontong</span>
+                                <span className="text-[8px] text-[#8C8C70] uppercase mt-0.5 block">Warung kecil & depot</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setNewNooWarung(p => Math.max(0, p - 1))}
+                                  className="w-8 h-8 rounded-xl bg-[#E5E5DF]/40 hover:bg-[#E5E5DF]/70 text-[#4A4A3C] flex items-center justify-center font-bold text-lg select-none cursor-pointer"
+                                >
+                                  -
+                                </button>
+                                <span className="w-8 text-center font-bold font-mono text-sm">
+                                  {newNooWarung}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setNewNooWarung(p => p + 1)}
+                                  className="w-8 h-8 rounded-xl bg-amber-500 text-white hover:bg-amber-600 flex items-center justify-center font-bold text-lg select-none cursor-pointer"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* TOKO MODERN */}
+                            <div className="bg-white border border-[#E5E5DF] rounded-2xl p-3 flex items-center justify-between">
+                              <div>
+                                <span className="text-[10px] font-bold text-rose-800 block uppercase leading-none font-sans">Toko / Store</span>
+                                <span className="text-[8px] text-[#8C8C70] uppercase mt-0.5 block">Toko sedang, minimarket</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setNewNooStore(p => Math.max(0, p - 1))}
+                                  className="w-8 h-8 rounded-xl bg-[#E5E5DF]/40 hover:bg-[#E5E5DF]/70 text-[#4A4A3C] flex items-center justify-center font-bold text-lg select-none cursor-pointer"
+                                >
+                                  -
+                                </button>
+                                <span className="w-8 text-center font-bold font-mono text-sm">
+                                  {newNooStore}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setNewNooStore(p => p + 1)}
+                                  className="w-8 h-8 rounded-xl bg-rose-600 text-white hover:bg-rose-700 flex items-center justify-center font-bold text-lg select-none cursor-pointer"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* KIOS */}
+                            <div className="bg-white border border-[#E5E5DF] rounded-2xl p-3 flex items-center justify-between">
+                              <div>
+                                <span className="text-[10px] font-bold text-indigo-800 block uppercase leading-none font-sans">Kios Atap</span>
+                                <span className="text-[8px] text-[#8C8C70] uppercase mt-0.5 block">Kios pasar & tenda</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setNewNooKiosk(p => Math.max(0, p - 1))}
+                                  className="w-8 h-8 rounded-xl bg-[#E5E5DF]/40 hover:bg-[#E5E5DF]/70 text-[#4A4A3C] flex items-center justify-center font-bold text-lg select-none cursor-pointer"
+                                >
+                                  -
+                                </button>
+                                <span className="w-8 text-center font-bold font-mono text-sm">
+                                  {newNooKiosk}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setNewNooKiosk(p => p + 1)}
+                                  className="w-8 h-8 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 flex items-center justify-center font-bold text-lg select-none cursor-pointer"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* GROSIR */}
+                            <div className="bg-white border border-[#E5E5DF] rounded-2xl p-3 flex items-center justify-between">
+                              <div>
+                                <span className="text-[10px] font-bold text-emerald-800 block uppercase leading-none font-sans">Wholesaler / Grosir</span>
+                                <span className="text-[8px] text-[#8C8C70] uppercase mt-0.5 block">Toko agen besar</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setNewNooWholesaler(p => Math.max(0, p - 1))}
+                                  className="w-8 h-8 rounded-xl bg-[#E5E5DF]/40 hover:bg-[#E5E5DF]/70 text-[#4A4A3C] flex items-center justify-center font-bold text-lg select-none cursor-pointer"
+                                >
+                                  -
+                                </button>
+                                <span className="w-8 text-center font-bold font-mono text-sm">
+                                  {newNooWholesaler}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setNewNooWholesaler(p => p + 1)}
+                                  className="w-8 h-8 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 flex items-center justify-center font-bold text-lg select-none cursor-pointer"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </div>
+
+                            <button
+                              type="submit"
+                              className="w-full bg-[#5A5A40] hover:bg-[#4A4A3C] text-white font-black text-xs uppercase tracking-wider py-3.5 rounded-xl shadow-md hover:shadow-lg transition cursor-pointer flex justify-center items-center gap-1.5"
+                            >
+                              <Check className="w-4 h-4" /> Simpan Log NOO Harian
+                            </button>
+                          </form>
+                        </div>
+
+                        {/* LIST OF RECENT KPI REPORTS FILED */}
+                        <div className="bg-[#FAF9F6] border border-[#E5E5DF] rounded-3xl p-6 shadow-sm mt-6 space-y-4">
+                          <h4 className="text-xs font-black text-[#5A5A40] uppercase tracking-wider flex items-center gap-1.5 border-b border-[#E5E5DF] pb-3">
+                            <FileText className="w-4 h-4 text-rose-500" />
+                            LAPORAN HARIAN TERAKHIR
+                          </h4>
+                          {salesmanReports.length === 0 ? (
+                            <p className="text-[11px] text-[#8C8C70] text-center font-semibold italic">Belum ada laporan audit KPI terdaftar.</p>
+                          ) : (
+                            <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                              {salesmanReports.slice(0, 5).map(rep => (
+                                <div key={rep.id} className="bg-white p-3 rounded-2xl border border-[#E5E5DF]/60 text-[11px] space-y-2">
+                                  <div className="flex justify-between font-bold">
+                                    <span className="font-mono text-rose-800">{rep.date}</span>
+                                    <span className="text-[#8C8C70]">{rep.cycle}</span>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-1 text-[10px] text-[#5A5A40]">
+                                    <div>TC/CP/EC: <strong className="text-gray-800 font-mono">{rep.tc}/{rep.cp}/{rep.ec}</strong></div>
+                                    <div>SKU Terjual: <strong className="text-gray-800 font-mono">{rep.skuTotal}</strong></div>
+                                  </div>
+                                  {rep.notes && (
+                                    <p className="text-[10px] text-[#8C8C70] leading-snug border-t border-gray-100 pt-1.5 italic">
+                                      "{rep.notes}"
+                                    </p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                );
+              })()}
+
             </motion.div>
           )}
 

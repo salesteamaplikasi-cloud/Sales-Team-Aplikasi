@@ -5,15 +5,23 @@
 
 import { Salesman, Product, KpiReport } from "./types";
 
-export const INITIAL_SALESMEN: Salesman[] = [];
+export const INITIAL_SALESMEN: Salesman[] = [
+  { id: "s-1", name: "RENY", area: "Semarang", phone: "081234567890", isActive: true, createdAt: "2026-05-20T00:00:00Z" },
+  { id: "s-2", name: "BUDI", area: "Semarang", phone: "082345678901", isActive: true, createdAt: "2026-05-20T00:00:00Z" },
+  { id: "s-6", name: "Rino", area: "Cilongok", phone: "083456789012", isActive: true, createdAt: "2026-05-20T00:00:00Z" },
+  { id: "s-7", name: "Aris", area: "Semarang", phone: "084567890123", isActive: true, createdAt: "2026-05-20T00:00:00Z" },
+  { id: "s-8", name: "Imam", area: "Demak", phone: "08567890124", isActive: true, createdAt: "2026-05-20T00:00:00Z" }
+];
 
 export const INITIAL_PRODUCTS: Product[] = [
-  { id: "p-1", name: "COTTON BUD YO PIPI", category: "Baby Care", skuCode: "CB-YPP", isActive: true },
-  { id: "p-2", name: "TISSUE YO PIPI POP UP", category: "Tissue", skuCode: "TJ-YPP-PU", isActive: true },
-  { id: "p-3", name: "TISSUE YO PIPI 250S", category: "Tissue", skuCode: "TJ-YPP-250", isActive: true },
-  { id: "p-4", name: "LED MADRIM TOPAZ", category: "Electrical/Lighting", skuCode: "LED-MT", isActive: true },
-  { id: "p-5", name: "LED MADRIM SOLAR TITAN", category: "Electrical/Lighting", skuCode: "LED-MST", isActive: true },
-  { id: "p-6", name: "LED MADRIM RUBY", category: "Electrical/Lighting", skuCode: "LED-MR", isActive: true }
+  { id: "F-1", name: "COTTON BUD YO PIPI", category: "Baby Care", skuCode: "F-1", isActive: true },
+  { id: "F-2", name: "TISSUE YO PIPI POP UP", category: "Tissue", skuCode: "F-2", isActive: true },
+  { id: "F-3", name: "TISSUE YO PIPI 250S", category: "Tissue", skuCode: "F-3", isActive: true },
+  { id: "F-4", name: "LED MADRIM TOPAZ", category: "Lampu", skuCode: "F-4", isActive: true },
+  { id: "F-5", name: "LED MADRIM SOLAR TITAN", category: "Lampu", skuCode: "F-5", isActive: true },
+  { id: "F-6", name: "LED MADRIM RED RUBY", category: "Lampu", skuCode: "F-6", isActive: true },
+  { id: "F-7", name: "RAFAZOR", category: "Body Care", skuCode: "F-7", isActive: true },
+  { id: "F-8", name: "LEM Gpass", category: "ATK", skuCode: "F-8", isActive: true }
 ];
 
 export const STANDARD_CYCLES = [
@@ -91,6 +99,66 @@ export const INITIAL_REPORTS: KpiReport[] = [
     billsReceived: 3853585,
     notes: "Hari kedua penyelesaian audit penagihan pasar Cilongok.",
     createdAt: "2026-05-22T17:10:00Z"
+  },
+  {
+    id: "rep-aris-1",
+    salesmanId: "s-7",
+    salesmanName: "Aris",
+    date: "2026-05-25",
+    cycle: "Senin Ganjil",
+    tc: 18,
+    cp: 16,
+    ec: 14,
+    skuTotal: 155,
+    operationalCost: 20000,
+    billsReceived: 3200000,
+    notes: "Laporan harian Aris. Orderan baby care Yo Pipi stabil tinggi.",
+    createdAt: "2026-05-25T17:00:00Z"
+  },
+  {
+    id: "rep-aris-2",
+    salesmanId: "s-7",
+    salesmanName: "Aris",
+    date: "2026-05-26",
+    cycle: "Selasa Ganjil",
+    tc: 15,
+    cp: 15,
+    ec: 11,
+    skuTotal: 112,
+    operationalCost: 15000,
+    billsReceived: 2100000,
+    notes: "Kunjungan daerah Semarang Tengah tuntas.",
+    createdAt: "2026-05-26T17:05:00Z"
+  },
+  {
+    id: "rep-imam-1",
+    salesmanId: "s-8",
+    salesmanName: "Imam",
+    date: "2026-05-25",
+    cycle: "Senin Ganjil",
+    tc: 14,
+    cp: 12,
+    ec: 9,
+    skuTotal: 95,
+    operationalCost: 25000,
+    billsReceived: 1800000,
+    notes: "Laporan harian Imam. Area Demak hujan deras siang hari.",
+    createdAt: "2026-05-25T17:15:00Z"
+  },
+  {
+    id: "rep-imam-2",
+    salesmanId: "s-8",
+    salesmanName: "Imam",
+    date: "2026-05-26",
+    cycle: "Selasa Ganjil",
+    tc: 16,
+    cp: 15,
+    ec: 12,
+    skuTotal: 128,
+    operationalCost: 15000,
+    billsReceived: 2950000,
+    notes: "Toko-toko pasar Demak terlayani baik.",
+    createdAt: "2026-05-26T17:10:00Z"
   }
 ];
 
