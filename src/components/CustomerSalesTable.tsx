@@ -1,11 +1,69 @@
 import React, { useState } from "react";
 import { CUSTOMER_DATA } from "../data/customerList";
-import { Download, Search } from "lucide-react";
+import { Download, Search, Upload } from "lucide-react";
 
 export function CustomerSalesTable() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [customerData, setCustomerData] = useState(CUSTOMER_DATA);
+  const [importMessage, setImportMessage] = useState<string | null>(null);
 
-  const filteredData = CUSTOMER_DATA.map(visit => ({
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+
+      let newData = [...customerData];
+      const existingIds = new Set(newData.flatMap(v => v.customers.map(c => c.id)));
+      let addedCount = 0;
+      let duplicateCount = 0;
+
+      lines.forEach(line => {
+        const cols = line.split(/\t| {2,}/).map(c => c.trim()).filter(Boolean);
+        
+        if (cols.length >= 6) {
+          const [id, nama, jalan, kota, salesman, ...kunjunganParts] = cols;
+          const kunjungan = kunjunganParts.join(" ");
+
+          if (id.toLowerCase().includes("id") || id.toLowerCase().includes("pelanggan")) return;
+
+          if (!existingIds.has(id)) {
+            existingIds.add(id);
+            addedCount++;
+
+            const newCustomer = { id, nama, jalan, kota };
+            const existingScheduleIndex = newData.findIndex(v => v.salesman === salesman && v.kunjungan === kunjungan);
+
+            if (existingScheduleIndex >= 0) {
+              newData[existingScheduleIndex] = {
+                ...newData[existingScheduleIndex],
+                customers: [...newData[existingScheduleIndex].customers, newCustomer]
+              };
+            } else {
+              newData.push({
+                salesman,
+                kunjungan,
+                customers: [newCustomer]
+              });
+            }
+          } else {
+            duplicateCount++;
+          }
+        }
+      });
+
+      setCustomerData(newData);
+      setImportMessage(`Impor selesai! Ditambahkan: ${addedCount} pelanggan baru. Diabaikan: ${duplicateCount} data duplikat.`);
+      setTimeout(() => setImportMessage(null), 5000);
+      e.target.value = "";
+    };
+    reader.readAsText(file);
+  };
+
+  const filteredData = customerData.map(visit => ({
     ...visit,
     customers: visit.customers.filter(c =>
       c.nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -15,7 +73,7 @@ export function CustomerSalesTable() {
 
   const exportToCSV = () => {
     const headers = ["Salesman", "Kunjungan", "ID Pelanggan", "Nama", "Jalan", "Kota"];
-    const rows = CUSTOMER_DATA.flatMap(v => 
+    const rows = customerData.flatMap(v => 
       v.customers.map(c => [v.salesman, v.kunjungan, c.id, c.nama, c.jalan, c.kota])
     );
     const csvContent = [headers, ...rows].map(r => r.join(",")).join("\n");
@@ -29,9 +87,29 @@ export function CustomerSalesTable() {
 
   return (
     <div className="p-6 bg-[#FAF9F6] rounded-xl border border-[#E5E5DF]">
+      {importMessage && (
+        <div className="mb-4 bg-[#5A5A40] text-white p-3 rounded-lg text-sm flex items-center justify-between">
+          <span>{importMessage}</span>
+          <button onClick={() => setImportMessage(null)} className="font-bold hover:text-gray-300">×</button>
+        </div>
+      )}
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-bold font-serif text-[#4A4A3C]">Daftar Pelanggan & Sales</h2>
         <div className="flex gap-2">
+          <input 
+            type="file" 
+            id="import-upload" 
+            className="hidden" 
+            accept=".txt,.csv,.tsv" 
+            onChange={handleFileUpload} 
+          />
+          <button 
+            onClick={() => document.getElementById('import-upload')?.click()} 
+            className="flex items-center gap-2 bg-[#FAF9F6] text-[#4A4A3C] border border-[#E5E5DF] hover:bg-[#E5E5DF]/50 px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+          >
+            <Upload className="w-4 h-4" /> Import TXT
+          </button>
+          
           <div className="relative">
             <Search className="absolute left-3 top-2.5 w-4 h-4 text-[#8C8C70]" />
             <input
