@@ -62,6 +62,7 @@ import {
 } from "./data";
 
 import { CustomerLoyaltyPortal } from "./components/CustomerLoyaltyPortal";
+import { CustomerSalesTable } from "./components/CustomerSalesTable";
 import { FarmerDashboard } from "./components/FarmerDashboard";
 
 const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
@@ -594,7 +595,7 @@ export default function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<"form" | "salesmen" | "products" | "reports" | "sheets" | "loyalty" | "kpisales" | "claims">(() => {
+  const [activeTab, setActiveTab] = useState<"form" | "salesmen" | "products" | "reports" | "sheets" | "loyalty" | "kpisales" | "claims" | "customerData">(() => {
     try {
       const p = new URLSearchParams(window.location.search);
       if (p.get("mode") === "customer-loyalty" || p.get("view") === "loyalty") {
@@ -2638,6 +2639,20 @@ export default function App() {
             {!isSidebarCollapsed && <span className="truncate">Data Salesman</span>}
           </button>
 
+          {/* Item 2.1: Data Pelanggan */}
+          <button
+            onClick={() => setActiveTab("customerData")}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all ${
+              activeTab === "customerData"
+                ? "bg-[#5A5A40] text-[#FAF9F6] shadow-sm font-bold"
+                : "text-[#8C8C70] hover:text-[#4A4A3C] hover:bg-[#E5E5DF]/30"
+            }`}
+            title="Data Pelanggan"
+          >
+            <Users className="w-4 h-4 shrink-0" />
+            {!isSidebarCollapsed && <span className="truncate">Data Pelanggan</span>}
+          </button>
+
           {/* Item 3: Database Produk */}
           <button
             onClick={() => setActiveTab("products")}
@@ -2841,6 +2856,20 @@ export default function App() {
                 >
                   <User className="w-4 h-4" />
                   Database Salesman
+                </button>
+
+                {/* 3.1. Data Pelanggan */}
+                <button
+                  onClick={() => {
+                    setActiveTab("customerData");
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className={`w-full py-2.5 px-4 rounded-xl text-left text-xs font-black uppercase tracking-wider flex items-center gap-3 ${
+                    activeTab === "customerData" ? "bg-[#5A5A40] text-[#FAF9F6]" : "bg-[#E5E5DF]/20 text-[#8C8C70]"
+                  }`}
+                >
+                  <Users className="w-4 h-4" />
+                  Data Pelanggan
                 </button>
 
                 {/* 4. Database Produk */}
@@ -3527,6 +3556,20 @@ export default function App() {
           )}
 
           {/* TAB 2: SALESMAN DATABASE MANAGEMENT (ANSWERING USER'S DETAILED DB QUESTION) */}
+          {activeTab === "customerData" && (
+            <motion.div
+              layout
+              key="customer-data-tab"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.25 }}
+              className="max-w-6xl mx-auto w-full"
+            >
+              <CustomerSalesTable />
+            </motion.div>
+          )}
+
           {activeTab === "salesmen" && (
             <motion.div
               layout
