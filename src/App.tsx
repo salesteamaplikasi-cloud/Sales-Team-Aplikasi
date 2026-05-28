@@ -960,8 +960,46 @@ export default function App() {
 
   // --- FORM STATE ---
   const [selectedSalesmanId, setSelectedSalesmanId] = useState<string>("");
-  const [selectedCycle, setSelectedCycle] = useState<string>("Rabu Genap");
+  const [selectedCycle, setSelectedCycle] = useState<string>(() => autoDetectCycle(new Date().toISOString().split("T")[0]));
   const [area, setArea] = useState<string>("Banyumas");
+  const [availableAreas, setAvailableAreas] = useState<string[]>(["Banyumas", "Banjarnegara", "Cilacap", "Purbalingga", "Purwokerto", "Kebumen"]);
+
+  useEffect(() => {
+    if (selectedSalesmanId && selectedCycle && salesmen.length > 0) {
+      const salesman = salesmen.find(s => s.id === selectedSalesmanId);
+      if (salesman) {
+        try {
+          const savedCustomerDB = localStorage.getItem("customerDatabase");
+          if (savedCustomerDB) {
+            const customerDbParsed = JSON.parse(savedCustomerDB);
+            const matchingVisit = customerDbParsed.find(
+              (v: any) => v.salesman.trim().toUpperCase() === salesman.name.trim().toUpperCase() && v.kunjungan.trim().toUpperCase() === selectedCycle.trim().toUpperCase()
+            );
+            if (matchingVisit && matchingVisit.customers && matchingVisit.customers.length > 0) {
+              const uniqueKotas = Array.from(new Set(matchingVisit.customers.map((c: any) => c.kota))).filter(Boolean) as string[];
+              if (uniqueKotas.length > 0) {
+                setAvailableAreas(uniqueKotas);
+                if (!uniqueKotas.includes(area)) {
+                  setArea(uniqueKotas[0]);
+                }
+                return;
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Error reading customer DB", e);
+        }
+      }
+    }
+    
+    // Fallback to standard defaults if no specific customer data matches
+    const defaults = ["Banyumas", "Banjarnegara", "Cilacap", "Purbalingga", "Purwokerto", "Kebumen"];
+    setAvailableAreas(defaults);
+    if (!defaults.includes(area) && defaults.length > 0) {
+      setArea(defaults[0]);
+    }
+  }, [selectedSalesmanId, selectedCycle, salesmen]);
+
   const [tc, setTc] = useState<number>(0);
   const [cp, setCp] = useState<number>(0);
   const [ec, setEc] = useState<number>(0);
@@ -3052,7 +3090,7 @@ export default function App() {
                         className="w-full bg-[#FAF9F6] border border-[#E5E5DF] rounded-xl px-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40] focus:bg-white text-[#4A4A3C] font-semibold transition"
                         required
                       >
-                        {["Banyumas", "Banjarnegara", "Cilacap", "Purbalingga", "Purwokerto", "Kebumen"].map(a => (
+                        {availableAreas.map(a => (
                           <option key={a} value={a}>{a}</option>
                         ))}
                       </select>

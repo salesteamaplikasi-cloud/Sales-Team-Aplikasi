@@ -164,34 +164,27 @@ export const INITIAL_REPORTS: KpiReport[] = [
 
 /**
  * Gets the current day status for auto-detect (e.g. "Sabtu Ganjil" or "Sabtu Genap")
- * Specially aligned with user request:
- * - 27 Mei 2026 (Wednesday) as Selasa Ganjil
- * - 3 Juni 2026 (Wednesday) as Selasa Genap
+ * Aligned with user request: May 28, 2026 (Thursday) is "Kamis Ganjil".
  */
 export function autoDetectCycle(dateString: string): string {
   const d = new Date(dateString);
+  const dLocal = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   
-  // Base reference date set by user request: May 27, 2026 (Selasa Ganjil)
-  const ref = new Date("2026-05-27");
+  // Base reference date: May 25, 2026 (Senin) is start of Ganjil week
+  const refLocal = new Date(2026, 4, 25);
   
-  // Calculate difference in days, rounded to nearest integer
-  const diffDays = Math.round((d.getTime() - ref.getTime()) / 86400000);
+  // Calculate difference in days
+  const diffDays = Math.round((dLocal.getTime() - refLocal.getTime()) / 86400000);
   
-  // Determine parity week offset relative to reference date (7 days per cycle)
+  // Determine parity week offset
   const weekOffset = Math.floor(diffDays / 7);
   const normalizedWeekOffset = ((weekOffset % 2) + 2) % 2; // Always 0 or 1
   
-  // Offset 0 (even week count from ref) is Ganjil, offset 1 is Genap
+  // Offset 0 is Ganjil, offset 1 is Genap
   const parity = normalizedWeekOffset === 0 ? "Ganjil" : "Genap";
   
-  // Shift the week by -1 day uniformly (Wednesday behaves as Tuesday) as requested
-  let shiftedDayIndex = d.getDay() - 1;
-  if (shiftedDayIndex < 0) {
-    shiftedDayIndex = 6; // Sunday shifts to Saturday
-  }
-  
   const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
-  let dayName = days[shiftedDayIndex];
+  let dayName = days[dLocal.getDay()];
   
   if (dayName === "Minggu") {
     dayName = "Senin";
