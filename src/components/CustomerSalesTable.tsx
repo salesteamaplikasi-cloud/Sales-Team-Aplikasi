@@ -1,16 +1,28 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { CUSTOMER_DATA } from "../data/customerList";
-import { Download, Search, Upload, Edit, X, Plus, Trash2 } from "lucide-react";
+import { Download, Search, Upload, Edit, X, Plus, Trash2, Code } from "lucide-react";
 import type { VisitSchedule } from "../data/customerList";
 
 export function CustomerSalesTable() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [customerData, setCustomerData] = useState(CUSTOMER_DATA);
+  const [customerData, setCustomerData] = useState<VisitSchedule[]>(() => {
+    try {
+      const saved = localStorage.getItem("customerDatabase");
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error("Failed to load customer data from local storage", e);
+    }
+    return CUSTOMER_DATA;
+  });
   const [importMessage, setImportMessage] = useState<string | null>(null);
 
   // Edit State
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editFormData, setEditFormData] = useState<VisitSchedule | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem("customerDatabase", JSON.stringify(customerData));
+  }, [customerData]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -75,6 +87,30 @@ export function CustomerSalesTable() {
       c.id.toLowerCase().includes(searchTerm.toLowerCase())
     )
   })).filter(visit => visit.customers.length > 0);
+
+  const exportToTS = () => {
+    const tsContent = `export interface Customer {
+  id: string;
+  nama: string;
+  jalan: string;
+  kota: string;
+}
+
+export interface VisitSchedule {
+  salesman: string;
+  kunjungan: string;
+  customers: Customer[];
+}
+
+export const CUSTOMER_DATA: VisitSchedule[] = ${JSON.stringify(customerData, null, 2)};
+`;
+    const blob = new Blob([tsContent], { type: "text/typescript;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "customerList.ts";
+    link.click();
+  };
 
   const exportToCSV = () => {
     const headers = ["Salesman", "Kunjungan", "ID Pelanggan", "Nama", "Jalan", "Kota"];
@@ -252,6 +288,9 @@ export function CustomerSalesTable() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+          <button onClick={exportToTS} className="flex items-center gap-2 bg-[#FAF9F6] text-[#4A4A3C] border border-[#E5E5DF] hover:bg-[#E5E5DF]/50 px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
+            <Code className="w-4 h-4" /> Export TS Code
+          </button>
           <button onClick={exportToCSV} className="flex items-center gap-2 bg-[#5A5A40] text-white px-4 py-2 rounded-lg text-sm font-semibold">
             <Download className="w-4 h-4" /> Export CSV
           </button>
