@@ -1,11 +1,16 @@
 import React, { useState } from "react";
 import { CUSTOMER_DATA } from "../data/customerList";
-import { Download, Search, Upload } from "lucide-react";
+import { Download, Search, Upload, Edit, X, Plus, Trash2 } from "lucide-react";
+import type { VisitSchedule } from "../data/customerList";
 
 export function CustomerSalesTable() {
   const [searchTerm, setSearchTerm] = useState("");
   const [customerData, setCustomerData] = useState(CUSTOMER_DATA);
   const [importMessage, setImportMessage] = useState<string | null>(null);
+
+  // Edit State
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editFormData, setEditFormData] = useState<VisitSchedule | null>(null);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -85,8 +90,135 @@ export function CustomerSalesTable() {
     link.click();
   };
 
+  const handleSaveEdit = () => {
+    if (editingIndex !== null && editFormData) {
+      const newData = [...customerData];
+      newData[editingIndex] = editFormData;
+      setCustomerData(newData);
+      setEditingIndex(null);
+      setEditFormData(null);
+    }
+  };
+
+  const handleCustomerEditChange = (customerIndex: number, field: string, value: string) => {
+    if (editFormData) {
+      const updatedCustomers = [...editFormData.customers];
+      updatedCustomers[customerIndex] = { ...updatedCustomers[customerIndex], [field]: value };
+      setEditFormData({ ...editFormData, customers: updatedCustomers });
+    }
+  };
+
+  const handleDeleteCustomer = (customerIndex: number) => {
+    if (editFormData) {
+      const updatedCustomers = editFormData.customers.filter((_, i) => i !== customerIndex);
+      setEditFormData({ ...editFormData, customers: updatedCustomers });
+    }
+  };
+
   return (
-    <div className="p-6 bg-[#FAF9F6] rounded-xl border border-[#E5E5DF]">
+    <div className="relative p-6 bg-[#FAF9F6] rounded-xl border border-[#E5E5DF]">
+      {/* Edit Modal */}
+      {editingIndex !== null && editFormData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="p-4 border-b border-[#E5E5DF] flex justify-between items-center bg-[#FAF9F6]">
+              <h3 className="text-xl font-bold font-serif text-[#4A4A3C]">Edit Data Kunjungan</h3>
+              <button onClick={() => setEditingIndex(null)} className="text-[#8C8C70] hover:text-black">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div>
+                  <label className="block text-xs font-bold text-[#8C8C70] mb-1">Salesman</label>
+                  <input
+                    type="text"
+                    value={editFormData.salesman}
+                    onChange={(e) => setEditFormData({ ...editFormData, salesman: e.target.value })}
+                    className="w-full p-2 border border-[#E5E5DF] rounded focus:ring-2 focus:ring-[#5A5A40] outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#8C8C70] mb-1">Hari Kunjungan & Minggu</label>
+                  <input
+                    type="text"
+                    value={editFormData.kunjungan}
+                    onChange={(e) => setEditFormData({ ...editFormData, kunjungan: e.target.value })}
+                    className="w-full p-2 border border-[#E5E5DF] rounded focus:ring-2 focus:ring-[#5A5A40] outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="mb-2 flex justify-between items-center">
+                <h4 className="font-bold text-[#4A4A3C]">Daftar Pelanggan ({editFormData.customers.length})</h4>
+                <button
+                  onClick={() => setEditFormData({
+                    ...editFormData,
+                    customers: [...editFormData.customers, { id: "", nama: "", jalan: "", kota: "" }]
+                  })}
+                  className="flex items-center gap-1 text-xs bg-[#5A5A40] text-white px-2 py-1.5 rounded hover:bg-[#4A4A3C]"
+                >
+                  <Plus className="w-4 h-4" /> Tambah Pelanggan
+                </button>
+              </div>
+              
+              <div className="border border-[#E5E5DF] rounded-xl overflow-hidden">
+                <table className="w-full text-left text-sm text-[#4A4A3C]">
+                  <thead className="bg-[#E5E5DF]/20">
+                    <tr>
+                      <th className="p-2 w-1/4">ID</th>
+                      <th className="p-2 w-1/4">Nama</th>
+                      <th className="p-2 w-1/3">Jalan</th>
+                      <th className="p-2">Kota</th>
+                      <th className="p-2 w-10 text-center">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {editFormData.customers.map((c, idx) => (
+                      <tr key={idx} className="border-t border-[#E5E5DF]">
+                        <td className="p-2">
+                          <input type="text" value={c.id} onChange={(e) => handleCustomerEditChange(idx, 'id', e.target.value)} className="w-full p-1.5 border border-[#E5E5DF] rounded text-xs" />
+                        </td>
+                        <td className="p-2">
+                          <input type="text" value={c.nama} onChange={(e) => handleCustomerEditChange(idx, 'nama', e.target.value)} className="w-full p-1.5 border border-[#E5E5DF] rounded text-xs" />
+                        </td>
+                        <td className="p-2">
+                          <input type="text" value={c.jalan} onChange={(e) => handleCustomerEditChange(idx, 'jalan', e.target.value)} className="w-full p-1.5 border border-[#E5E5DF] rounded text-xs" />
+                        </td>
+                        <td className="p-2">
+                          <input type="text" value={c.kota} onChange={(e) => handleCustomerEditChange(idx, 'kota', e.target.value)} className="w-full p-1.5 border border-[#E5E5DF] rounded text-xs" />
+                        </td>
+                        <td className="p-2 text-center">
+                          <button onClick={() => handleDeleteCustomer(idx)} className="text-red-500 hover:text-red-700">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-[#E5E5DF] bg-[#FAF9F6] flex justify-end gap-3">
+              <button 
+                onClick={() => setEditingIndex(null)}
+                className="px-4 py-2 rounded-lg font-bold text-[#8C8C70] hover:text-[#4A4A3C]"
+              >
+                Batal
+              </button>
+              <button 
+                onClick={handleSaveEdit}
+                className="px-4 py-2 bg-[#5A5A40] text-white rounded-lg font-bold hover:bg-[#4A4A3C]"
+              >
+                Simpan Perubahan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {importMessage && (
         <div className="mb-4 bg-[#5A5A40] text-white p-3 rounded-lg text-sm flex items-center justify-between">
           <span>{importMessage}</span>
@@ -132,10 +264,15 @@ export function CustomerSalesTable() {
               <th className="p-3 w-1/4">Salesman</th>
               <th className="p-3 w-1/4">Kunjungan</th>
               <th className="p-3 w-1/2">Daftar Toko Dikunjungi (Dropdown)</th>
+              <th className="p-3 w-16 text-center">Edit</th>
             </tr>
           </thead>
           <tbody>
-            {filteredData.map((visit, i) => (
+            {filteredData.map((visit, i) => {
+              // Find original index for editing
+              const originalIndex = customerData.findIndex(v => v.salesman === visit.salesman && v.kunjungan === visit.kunjungan);
+
+              return (
               <tr key={`${visit.salesman}-${visit.kunjungan}-${i}`} className="border-b border-[#E5E5DF]/50 hover:bg-[#E5E5DF]/10 align-top">
                 <td className="p-3 font-semibold">{visit.salesman}</td>
                 <td className="p-3">
@@ -158,8 +295,21 @@ export function CustomerSalesTable() {
                     ))}
                   </select>
                 </td>
+                <td className="p-3 text-center">
+                  <button 
+                    onClick={() => {
+                      setEditingIndex(originalIndex);
+                      setEditFormData(JSON.parse(JSON.stringify(customerData[originalIndex])));
+                    }}
+                    className="p-1.5 bg-[#E5E5DF] text-[#4A4A3C] hover:bg-[#5A5A40] hover:text-white rounded transition-colors inline-flex justify-center items-center"
+                    title="Edit Data"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
