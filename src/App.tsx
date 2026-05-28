@@ -2424,7 +2424,7 @@ export default function App() {
               <User className="w-10 h-10 text-[#5A5A40]" />
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-center uppercase tracking-tight text-[#4A4A3C] mb-2 font-serif italic">Login Portal</h1>
+          <h1 className="text-2xl font-bold text-center uppercase tracking-tight text-zinc-900 mb-2">Login Portal</h1>
           <p className="text-center text-[#8C8C70] text-xs font-semibold mb-8">Silakan masuk untuk kelola Audit KPI Sales</p>
           
           {loginError && (
@@ -2505,7 +2505,7 @@ export default function App() {
         <div className="p-4 border-b border-[#E5E5DF] flex items-center justify-between gap-2 overflow-hidden">
           {!isSidebarCollapsed && (
             <div className="flex flex-col">
-              <span className="text-base font-serif italic font-extrabold tracking-tight text-[#4A4A3C] uppercase whitespace-nowrap">
+          <span className="text-base font-semibold tracking-tight text-zinc-900 uppercase whitespace-nowrap">
                 PORTAL KPI
               </span>
               <span className="text-[9px] font-bold text-[#8C8C70] uppercase tracking-wider leading-none">
@@ -2514,7 +2514,7 @@ export default function App() {
             </div>
           )}
           {isSidebarCollapsed && (
-            <div className="mx-auto p-1 bg-[#5A5A40] text-white rounded-lg text-xs font-serif font-black italic">
+            <div className="mx-auto p-1 bg-zinc-900 text-white rounded-lg text-xs font-bold">
               AKP
             </div>
           )}

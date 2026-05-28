@@ -102,3 +102,12 @@ export interface NooRecord {
   kiosk: number;
   wholesaler: number;
 }
+
+export interface Outlet {
+  id: string;
+  name: string;
+  address: string;
+  city: string;
+  salesman: string;
+  cycle: string;
+}
