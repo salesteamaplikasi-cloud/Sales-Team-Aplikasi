@@ -17,14 +17,20 @@ export interface CatalogHadiah {
   pointsValue: number;
 }
 
+export enum SalesmanRole {
+  GENERAL = "General",
+  FARMER = "Farmer",
+  HUNTER = "Hunter",
+}
+
 export interface Salesman {
   id: string;
   name: string;
   phone?: string;
   area?: string;
-  role?: string;
   isActive: boolean;
   createdAt: string;
+  role?: SalesmanRole;
 }
 
 export interface Product {
@@ -65,8 +71,6 @@ export interface KpiReport {
   billsGiro?: number; // Tagihan Giro
   productsDetail?: KpiReportProduct[]; // Optional dynamic product details
   notes?: string;
-  salesmanStatus?: string; // "MASUK" | "SAKIT" | "IZIN"
-  replacedBySalesmanName?: string; // Name of substituting salesman if status is "IZIN"
   createdAt: string;
 }
 

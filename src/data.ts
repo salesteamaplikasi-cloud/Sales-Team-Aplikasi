@@ -3,13 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Salesman, Product, KpiReport } from "./types";
+import { Salesman, Product, KpiReport, SalesmanRole } from "./types";
 
 export const INITIAL_SALESMEN: Salesman[] = [
   { id: "s-1", name: "RENY", area: "Semarang", phone: "081234567890", isActive: true, createdAt: "2026-05-20T00:00:00Z" },
   { id: "s-2", name: "BUDI", area: "Semarang", phone: "082345678901", isActive: true, createdAt: "2026-05-20T00:00:00Z" },
   { id: "s-6", name: "Rino", area: "Cilongok", phone: "083456789012", isActive: true, createdAt: "2026-05-20T00:00:00Z" },
-  { id: "s-7", name: "Aris", area: "Semarang", phone: "084567890123", role: "Farmer", isActive: true, createdAt: "2026-05-20T00:00:00Z" },
+  { id: "s-7", name: "Aris", area: "Semarang", phone: "084567890123", isActive: true, createdAt: "2026-05-20T00:00:00Z", role: SalesmanRole.FARMER },
   { id: "s-8", name: "Imam", area: "Demak", phone: "08567890124", isActive: true, createdAt: "2026-05-20T00:00:00Z" }
 ];
 
