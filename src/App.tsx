@@ -3306,8 +3306,8 @@ export default function App() {
 
                   </div>
 
-                  {/* CONDITIONAL NOO INPUTS FOR ARIS & IMAM (NOO) */}
-                  {activeSalesman && (activeSalesman.name.toLowerCase().trim() === "aris" || activeSalesman.name.toLowerCase().trim() === "imam") && (
+                  {/* CONDITIONAL NOO INPUTS FOR IMAM (NOO) */}
+                  {activeSalesman && (activeSalesman.name.toLowerCase().trim() === "imam") && (
                     <div className="bg-rose-50/50 rounded-2xl p-5 border border-rose-100 flex flex-col gap-4 animate-in fade-in slide-in-from-top-3 duration-200">
                       <div className="flex items-center justify-between border-b border-rose-200/60 pb-2">
                         <div className="flex items-center gap-2">
@@ -5397,18 +5397,6 @@ function createCustomerProfilingForm() {
                 >
                   <Users className="w-4 h-4" />
                   Semua Salesman
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setKpiSalesmanTab("Aris")}
-                  className={`flex-grow sm:flex-grow-0 px-6 py-2.5 rounded-xl text-xs uppercase font-extrabold cursor-pointer transition flex justify-center items-center gap-2 ${
-                    kpiSalesmanTab === "Aris" 
-                      ? "bg-rose-600 text-white shadow-xs" 
-                      : "text-rose-900 hover:bg-rose-500/10 font-bold"
-                  }`}
-                >
-                  <User className="w-4 h-4" />
-                  NOO Aris
                 </button>
                 <button
                   type="button"
