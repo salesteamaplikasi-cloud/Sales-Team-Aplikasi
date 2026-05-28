@@ -104,7 +104,7 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
     // AKSI 2: Tambah Laporan KPI Tunggal
     if (data.action === "addReport") {
       var sheet = getOrCreateGlobalSheet(ss, "Laporan KPI Sales", [
-        "ID Laporan", "Tanggal KPI", "Nama Salesman", "Siklus", 
+        "ID Laporan", "Tanggal KPI", "Nama Salesman", "Siklus", "Area",
         "TC (Amplop)", "CP (Kunjungan)", "EC (Order)", "SKU Total", 
         "Tagihan Bayar Tunai", "Tagihan Bayar Transfer", "Tagihan Giro", "Biaya Operasional (Rp)", "Catatan", 
         "Tanggal Dibuat", "Rincian SKU Produk"
@@ -119,7 +119,7 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
       }
       
       sheet.appendRow([
-        rep.id, rep.date, rep.salesmanName, rep.cycle,
+        rep.id, rep.date, rep.salesmanName, rep.cycle, rep.area,
         rep.tc, rep.cp, rep.ec, rep.skuTotal,
         rep.billsReceived, rep.billsTransfer || 0, rep.billsGiro || 0, rep.operationalCost, rep.notes || "",
         rep.createdAt, productsStr
@@ -136,7 +136,7 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
     // AKSI 3: Sinkronisasi Laporan KPI Masal (Bulk)
     if (data.action === "syncAll") {
       var headers = [
-        "ID Laporan", "Tanggal KPI", "Nama Salesman", "Siklus", 
+        "ID Laporan", "Tanggal KPI", "Nama Salesman", "Siklus", "Area",
         "TC (Amplop)", "CP (Kunjungan)", "EC (Order)", "SKU Total", 
         "Tagihan Bayar Tunai", "Tagihan Bayar Transfer", "Tagihan Giro", "Biaya Operasional (Rp)", "Catatan", 
         "Tanggal Dibuat", "Rincian SKU Produk"
@@ -960,6 +960,7 @@ export default function App() {
   // --- FORM STATE ---
   const [selectedSalesmanId, setSelectedSalesmanId] = useState<string>("");
   const [selectedCycle, setSelectedCycle] = useState<string>("Rabu Genap");
+  const [area, setArea] = useState<string>("Banyumas");
   const [tc, setTc] = useState<number>(0);
   const [cp, setCp] = useState<number>(0);
   const [ec, setEc] = useState<number>(0);
@@ -1173,6 +1174,7 @@ export default function App() {
       salesmanName: matchedSales.name,
       date: reportDate,
       cycle: selectedCycle,
+      area: area,
       tc,
       cp,
       ec,
@@ -1377,11 +1379,12 @@ export default function App() {
             salesmanName: String(item["Nama Salesman"] || item.salesmanName || "SALES"),
             salesmanId: String(item["ID Salesman"] || item.salesmanId || "s-unknown"),
             cycle: String(item["Siklus"] || item.cycle || ""),
+            area: String(item["Area"] || item.area || "Banyumas"),
             tc: Number(item["TC (Amplop)"] || item.tc || 0),
             cp: Number(item["CP (Kunjungan)"] || item.cp || 0),
             ec: Number(item["EC (Order)"] || item.ec || 0),
             skuTotal: Number(item["SKU Total"] || item.skuTotal || 0),
-            operationalCost: Number(item["Biaya Operasional (Rp)"] || item.operationalCost || 0),
+            operationalCost: parseInt(String(item["Biaya Operasional (Rp)"] || item.operationalCost || 0).replace(/[^0-9]/g, ""), 10) || 0,
             billsReceived: Number(item["Tagihan Bayar Tunai"] || item["Tagihan Didapat (Rp)"] || item.billsReceived || 0),
             billsTransfer: Number(item["Tagihan Bayar Transfer"] || item.billsTransfer || 0),
             billsGiro: Number(item["Tagihan Giro"] || item.billsGiro || 0),
@@ -3009,6 +3012,22 @@ export default function App() {
                         ))}
                       </select>
                     </div>
+
+                    <div className="w-full">
+                      <label className="block text-xs font-bold text-[#8C8C70] uppercase tracking-widest mb-1.5 mt-4">
+                        AREA *
+                      </label>
+                      <select
+                        value={area}
+                        onChange={(e) => setArea(e.target.value)}
+                        className="w-full bg-[#FAF9F6] border border-[#E5E5DF] rounded-xl px-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#5A5A40] focus:bg-white text-[#4A4A3C] font-semibold transition"
+                        required
+                      >
+                        {["Banyumas", "Banjarnegara", "Cilacap", "Purbalingga", "Purwokerto", "Kebumen"].map(a => (
+                          <option key={a} value={a}>{a}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   {/* ROW 2: SEARCHABLE DROPDOWN CHANNELS FOR SALESMAN (AS DEMANDED) */}
@@ -3990,7 +4009,7 @@ export default function App() {
                         <div>
                           <span className="text-[10px] font-bold text-[#8C8C70] block uppercase">Operational Cost</span>
                           <span className="text-sm font-mono font-bold text-[#8C8C70] block">
-                            Rp {rep.operationalCost.toLocaleString("id-ID")}
+                            Rp {((typeof rep.operationalCost === 'number' && !isNaN(rep.operationalCost)) ? rep.operationalCost : 0).toLocaleString("id-ID")}
                           </span>
                         </div>
 
@@ -4003,7 +4022,7 @@ export default function App() {
                                 `Tanggal: ${rep.date}\n` +
                                 `Siklus: ${rep.cycle}\n` +
                                 `TC: ${rep.tc} | CP: ${rep.cp} | EC: ${rep.ec} | SKU: ${rep.skuTotal}\n` +
-                                `Ops: Rp ${rep.operationalCost.toLocaleString("id-ID")}\n` +
+                                `Ops: Rp ${((typeof rep.operationalCost === 'number' && !isNaN(rep.operationalCost)) ? rep.operationalCost : 0).toLocaleString("id-ID")}\n` +
                                 `Tunai: Rp ${rep.billsReceived.toLocaleString("id-ID")}\n` +
                                 `Transfer: Rp ${(rep.billsTransfer || 0).toLocaleString("id-ID")}\n` +
                                 `Giro: Rp ${(rep.billsGiro || 0).toLocaleString("id-ID")}\n` +
@@ -5974,7 +5993,7 @@ function createCustomerProfilingForm() {
                               Biaya Operasional
                             </span>
                             <span className="text-[10.5px] font-mono font-black text-amber-700 block mt-0.5 leading-none">
-                              Rp {g.operationalCost.toLocaleString("id-ID")}
+                              Rp {((typeof g.operationalCost === 'number' && !isNaN(g.operationalCost)) ? g.operationalCost : 0).toLocaleString("id-ID")}
                             </span>
                           </div>
                         </div>

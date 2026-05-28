@@ -10,8 +10,14 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ reports }) => 
   // Logic to identify potential stores (reports)
   // Proxy store by ID Laporan (simplified)
   
-  const potentialStores = reports.filter(r => r.billsReceived === 0 && r.tc > 0).slice(0, 5);
-  const decliningPerformance = reports.slice(0, 3); // Simplified fake logic
+  const potentialStores = reports.filter(r => r.billsReceived + (r.billsTransfer || 0) === 0 && r.tc > 0).slice(0, 5);
+  
+  // Calculate average total payment to identify declining stores
+  const calculateTotal = (r: KpiReport) => r.billsReceived + (r.billsTransfer || 0);
+  const totalReportsCount = reports.length;
+  const avgPayment = reports.length > 0 ? reports.reduce((sum, r) => sum + calculateTotal(r), 0) / totalReportsCount : 0;
+  
+  const decliningPerformance = reports.filter(r => calculateTotal(r) < avgPayment * 0.8).slice(0, 5);
 
   return (
     <div className="p-6 bg-gray-50 rounded-lg">
