@@ -177,17 +177,17 @@ export const CustomerLoyaltyPortal: React.FC<CustomerLoyaltyPortalProps> = ({
   return (
     <div className="space-y-6 max-w-4xl mx-auto px-2 py-4">
       {/* Glowing Premium Customer Portal Banner */}
-      <div className="bg-[#FAF9F6] border border-[#E5E5DF] p-6 rounded-3xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-4 relative overflow-hidden">
+      <div className="bg-[#ffffff] border border-[#e2e8f0] p-6 rounded-3xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-4 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-amber-500/10 to-transparent rounded-bl-3xl pointer-events-none"></div>
         <div className="flex items-center gap-4 text-center md:text-left flex-col md:flex-row">
           <div className="w-14 h-14 bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl flex items-center justify-center shadow-md shadow-amber-500/20">
             <Crown className="w-8 h-8 text-white animate-pulse" />
           </div>
           <div>
-            <h2 className="text-xl font-black text-[#5A5A40] uppercase tracking-wide flex items-center gap-2 justify-center md:justify-start">
+            <h2 className="text-xl font-black text-[#2563eb] uppercase tracking-wide flex items-center gap-2 justify-center md:justify-start">
               DKR Client Loyalty Portal
             </h2>
-            <p className="text-xs text-[#8C8C70] font-sans mt-0.5 max-w-xl">
+            <p className="text-xs text-[#64748b] font-sans mt-0.5 max-w-xl">
               Registrasi mandiri, cek tingkat tier, dan ketahui perolehan poin toko Anda untuk ditukarkan hadiah sponsor serta diskon belanja eksklusif.
             </p>
           </div>
@@ -202,7 +202,7 @@ export const CustomerLoyaltyPortal: React.FC<CustomerLoyaltyPortalProps> = ({
               window.history.pushState({}, "", url);
             } catch (_) {}
           }}
-          className="px-4 py-2 bg-[#E5E5DF]/50 hover:bg-[#E5E5DF] text-[#4A4A3C] text-[10px] font-black uppercase tracking-wider rounded-xl transition cursor-pointer flex items-center gap-1.5 self-center"
+          className="px-4 py-2 bg-[#e2e8f0]/50 hover:bg-[#e2e8f0] text-[#0f172a] text-[10px] font-black uppercase tracking-wider rounded-xl transition cursor-pointer flex items-center gap-1.5 self-center"
           title="Kembali ke Konsol Admin"
         >
           🚪 Keluar Portal
@@ -213,20 +213,20 @@ export const CustomerLoyaltyPortal: React.FC<CustomerLoyaltyPortalProps> = ({
       <div className="grid grid-cols-2 gap-3.5 max-w-sm mx-auto">
         <button
           onClick={() => setCustomerActiveSubTab("check")}
-          className={`py-3 px-4 rounded-xl font-extrabold text-[#4A4A3C] text-xs uppercase tracking-wider transition-all duration-150 cursor-pointer text-center ${
+          className={`py-3 px-4 rounded-xl font-extrabold text-[#0f172a] text-xs uppercase tracking-wider transition-all duration-150 cursor-pointer text-center ${
             customerActiveSubTab === "check"
               ? "bg-[#FAF5E6] border border-amber-600/35 text-amber-950 shadow-md shadow-amber-500/5"
-              : "bg-[#E5E5DF]/30 text-[#8C8C70] hover:bg-[#E5E5DF]/50 hover:text-[#4A4A3C]"
+              : "bg-[#e2e8f0]/30 text-[#64748b] hover:bg-[#e2e8f0]/50 hover:text-[#0f172a]"
           }`}
         >
           🪙 Cek Kartu Poin Saya
         </button>
         <button
           onClick={() => setCustomerActiveSubTab("register")}
-          className={`py-3 px-4 rounded-xl font-extrabold text-[#4A4A3C] text-xs uppercase tracking-wider transition-all duration-150 cursor-pointer text-center ${
+          className={`py-3 px-4 rounded-xl font-extrabold text-[#0f172a] text-xs uppercase tracking-wider transition-all duration-150 cursor-pointer text-center ${
             customerActiveSubTab === "register"
               ? "bg-[#FAF5E6] border border-amber-600/35 text-amber-950 shadow-md shadow-amber-500/5"
-              : "bg-[#E5E5DF]/30 text-[#8C8C70] hover:bg-[#E5E5DF]/50 hover:text-[#4A4A3C]"
+              : "bg-[#e2e8f0]/30 text-[#64748b] hover:bg-[#e2e8f0]/50 hover:text-[#0f172a]"
           }`}
         >
           ✨ Registrasi Outlet Baru
@@ -236,16 +236,16 @@ export const CustomerLoyaltyPortal: React.FC<CustomerLoyaltyPortalProps> = ({
       {/* SUBTAB 1: CEK POIN / KARTU DIGITAL */}
       {customerActiveSubTab === "check" && (
         <div className="space-y-6 animate-fadeIn">
-          <div className="bg-[#FAF9F6] p-6 rounded-3xl border border-[#E5E5DF] shadow-md max-w-xl mx-auto">
-            <h3 className="text-xs font-black text-[#5A5A40] uppercase tracking-wider mb-2 flex items-center gap-2">
+          <div className="bg-[#ffffff] p-6 rounded-3xl border border-[#e2e8f0] shadow-md max-w-xl mx-auto">
+            <h3 className="text-xs font-black text-[#2563eb] uppercase tracking-wider mb-2 flex items-center gap-2">
               🔍 Cari & Tampilkan Kartu Poin Toko
             </h3>
-            <p className="text-[11px] text-[#8C8C70] mb-4">
+            <p className="text-[11px] text-[#64748b] mb-4">
               Masukkan nama toko Anda untuk melacak saldo poin dan status keanggotaan real-time.
             </p>
 
             <div className="relative space-y-2">
-              <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+              <label className="block text-[10px] font-bold text-[#64748b] uppercase tracking-wider mb-1">
                 Ketik Nama Toko Anda:
               </label>
               <div className="flex gap-2">
@@ -257,7 +257,7 @@ export const CustomerLoyaltyPortal: React.FC<CustomerLoyaltyPortalProps> = ({
                     if (!e.target.value.trim()) setMatchedCustomer(null);
                   }}
                   placeholder="Contoh: Toko Makmur..."
-                  className="flex-1 bg-white border border-[#E5E5DF] rounded-xl px-4 py-3 text-xs text-[#4A4A3C] font-semibold focus:outline-hidden focus:ring-1 focus:ring-[#5A5A40] shadow-xs"
+                  className="flex-1 bg-white border border-[#e2e8f0] rounded-xl px-4 py-3 text-xs text-[#0f172a] font-semibold focus:outline-hidden focus:ring-1 focus:ring-[#2563eb] shadow-xs"
                 />
                 <button
                   type="button"
@@ -277,7 +277,7 @@ export const CustomerLoyaltyPortal: React.FC<CustomerLoyaltyPortalProps> = ({
                       showToast("Toko tidak ditemukan. Silakan cek ejaan nama toko Anda atau lakukan daftar mandiri!", "error");
                     }
                   }}
-                  className="bg-[#5A5A40] hover:bg-[#4A4A3C] text-white px-5 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition cursor-pointer"
+                  className="bg-[#2563eb] hover:bg-[#0f172a] text-white px-5 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition cursor-pointer"
                 >
                   Cari Kartu
                 </button>
@@ -290,7 +290,7 @@ export const CustomerLoyaltyPortal: React.FC<CustomerLoyaltyPortalProps> = ({
                 ).slice(0, 5);
                 if (filtered.length === 0) return null;
                 return (
-                  <div className="absolute left-0 right-0 z-20 bg-white border border-[#E5E5DF] rounded-xl mt-1.5 shadow-xl max-h-52 overflow-y-auto divide-y divide-[#E5E5DF]/40">
+                  <div className="absolute left-0 right-0 z-20 bg-white border border-[#e2e8f0] rounded-xl mt-1.5 shadow-xl max-h-52 overflow-y-auto divide-y divide-[#e2e8f0]/40">
                     {filtered.map(c => (
                       <button
                         key={c.id}
@@ -299,11 +299,11 @@ export const CustomerLoyaltyPortal: React.FC<CustomerLoyaltyPortalProps> = ({
                           setMatchedCustomer(c);
                           showToast(`Toko ${c.name.toUpperCase()} berhasil dimuat!`, "success");
                         }}
-                        className="w-full text-left px-4 py-2.5 hover:bg-[#E5E5DF]/20 transition flex items-center justify-between text-xs"
+                        className="w-full text-left px-4 py-2.5 hover:bg-[#e2e8f0]/20 transition flex items-center justify-between text-xs"
                       >
                         <div className="flex flex-col">
-                          <span className="font-bold text-[#4A4A3C]">{c.name}</span>
-                          <span className="text-[10px] text-[#8C8C70] truncate max-w-[280px]">📍 {c.address}</span>
+                          <span className="font-bold text-[#0f172a]">{c.name}</span>
+                          <span className="text-[10px] text-[#64748b] truncate max-w-[280px]">📍 {c.address}</span>
                         </div>
                         <span className="text-[9px] font-black bg-amber-500/15 text-amber-800 px-1.5 py-0.5 rounded font-mono">
                           ★ Tier {c.tier}
@@ -411,48 +411,48 @@ export const CustomerLoyaltyPortal: React.FC<CustomerLoyaltyPortalProps> = ({
                 </div>
 
                 {/* Detailed Benefits List */}
-                <div className="bg-[#FAF9F6] p-5 rounded-3xl border border-[#E5E5DF] shadow-xs space-y-3 text-left">
-                  <h4 className="text-xs font-black text-[#4A4A3C] uppercase tracking-wider flex items-center gap-1.5 border-b border-[#E5E5DF] pb-2">
+                <div className="bg-[#ffffff] p-5 rounded-3xl border border-[#e2e8f0] shadow-xs space-y-3 text-left">
+                  <h4 className="text-xs font-black text-[#0f172a] uppercase tracking-wider flex items-center gap-1.5 border-b border-[#e2e8f0] pb-2">
                     <Sparkles className="w-4 h-4 text-purple-600" />
                     Spesifikasi Hak & Keuntungan Keanggotaan Member Tier <strong>{matchedCustomer.tier}</strong>:
                   </h4>
                   <ul className="space-y-2">
                     {benefitList.map((ben, bIdx) => (
-                      <li key={bIdx} className="text-xs text-[#4A4A3C] flex items-start gap-2 leading-relaxed">
+                      <li key={bIdx} className="text-xs text-[#0f172a] flex items-start gap-2 leading-relaxed">
                         <span className="text-emerald-600 mt-1 text-[13px] font-extrabold shrink-0">✓</span>
                         <span>{ben}</span>
                       </li>
                     ))}
                   </ul>
-                  <p className="text-[10px] text-[#8C8C70] italic pt-1 text-center bg-[#E5E5DF]/10 p-2 rounded-xl border border-[#E5E5DF]/50">
+                  <p className="text-[10px] text-[#64748b] italic pt-1 text-center bg-[#e2e8f0]/10 p-2 rounded-xl border border-[#e2e8f0]/50">
                     * Poin dapat terkumpul ketika salesman kami membuat input kunjungan rutin & nota kirim ke Database.
                   </p>
                 </div>
 
                 {/* Timeline of Follow-Up Actions Audit from DKR */}
-                <div className="bg-[#FAF9F6] p-5 rounded-3xl border border-[#E5E5DF] shadow-xs space-y-3.5 text-left">
+                <div className="bg-[#ffffff] p-5 rounded-3xl border border-[#e2e8f0] shadow-xs space-y-3.5 text-left">
                   <div>
-                    <h4 className="text-xs font-black text-[#5A5A40] uppercase tracking-wider flex items-center gap-2">
-                      <History className="w-4 h-4 text-[#8C8C70]" />
+                    <h4 className="text-xs font-black text-[#2563eb] uppercase tracking-wider flex items-center gap-2">
+                      <History className="w-4 h-4 text-[#64748b]" />
                       Riwayat Tindakan & Kunjungan Sales ({matchedCustomer.actionsLog?.length || 0})
                     </h4>
-                    <p className="text-[10.5px] text-[#8C8C70] mt-0.5">Pantau agenda perbaikan & jadwal kunjungan dari tim Kepala Salesman.</p>
+                    <p className="text-[10.5px] text-[#64748b] mt-0.5">Pantau agenda perbaikan & jadwal kunjungan dari tim Kepala Salesman.</p>
                   </div>
 
                   {matchedCustomer.actionsLog && matchedCustomer.actionsLog.length > 0 ? (
                     <div className="space-y-2">
                       {matchedCustomer.actionsLog.map((act: any, aIdx: number) => (
-                        <div key={aIdx} className="bg-white p-2.5 rounded-xl border border-[#E5E5DF]/65 text-xs flex justify-between items-start gap-3">
+                        <div key={aIdx} className="bg-white p-2.5 rounded-xl border border-[#e2e8f0]/65 text-xs flex justify-between items-start gap-3">
                           <div className="flex flex-col gap-1 min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-mono text-[9px] bg-[#E5E5DF] text-[#4A4A3C] px-1.5 py-0.5 rounded font-bold">
+                              <span className="font-mono text-[9px] bg-[#e2e8f0] text-[#0f172a] px-1.5 py-0.5 rounded font-bold">
                                 {act.date}
                               </span>
-                              <span className="font-black text-[#4A4A3C] uppercase tracking-wide text-[10px]">
+                              <span className="font-black text-[#0f172a] uppercase tracking-wide text-[10px]">
                                 {act.action}
                               </span>
                             </div>
-                            <span className="text-[#8C8C70] italic">
+                            <span className="text-[#64748b] italic">
                               "{act.notes}"
                             </span>
                           </div>
@@ -463,28 +463,28 @@ export const CustomerLoyaltyPortal: React.FC<CustomerLoyaltyPortalProps> = ({
                       ))}
                     </div>
                   ) : (
-                    <p className="text-[11px] text-[#8C8C70] italic text-center p-3 bg-[#E5E5DF]/10 border border-dashed border-[#E5E5DF] rounded-xl">
+                    <p className="text-[11px] text-[#64748b] italic text-center p-3 bg-[#e2e8f0]/10 border border-dashed border-[#e2e8f0] rounded-xl">
                       Belum ada riwayat follow-up. Tim kami akan mengecek status toko Anda.
                     </p>
                   )}
                 </div>
 
                 {/* Rewards Catalogue section for customer info */}
-                <div className="bg-[#FAF9F6] p-5 rounded-3xl border border-[#E5E5DF] shadow-xs space-y-3 text-left">
-                  <h4 className="text-xs font-black text-[#4A4A3C] uppercase tracking-wider flex items-center gap-2">
+                <div className="bg-[#ffffff] p-5 rounded-3xl border border-[#e2e8f0] shadow-xs space-y-3 text-left">
+                  <h4 className="text-xs font-black text-[#0f172a] uppercase tracking-wider flex items-center gap-2">
                     <Gift className="w-4 h-4 text-emerald-700" />
                     Pilihan Cinderamata Loyalti Sponsor Tersedia:
                   </h4>
-                  <p className="text-[11px] text-[#8C8C70]">Tukarkan poin Anda langsung dengan menghubungi Sales Representative <strong>{matchedCustomer.salesmanName}</strong> ({matchedCustomer.area}) saat kunjungan!</p>
+                  <p className="text-[11px] text-[#64748b]">Tukarkan poin Anda langsung dengan menghubungi Sales Representative <strong>{matchedCustomer.salesmanName}</strong> ({matchedCustomer.area}) saat kunjungan!</p>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
                     {REWARDS_CATALOG.map(r => {
                       const canAfford = (matchedCustomer.points || 0) >= r.pointsCost;
                       return (
-                        <div key={r.id} className="bg-white p-2 border border-[#E5E5DF] rounded-xl flex items-center justify-between text-xs gap-2">
+                        <div key={r.id} className="bg-white p-2 border border-[#e2e8f0] rounded-xl flex items-center justify-between text-xs gap-2">
                           <div className="flex flex-col min-w-0">
-                            <span className="font-bold text-[#4A4A3C] truncate">{r.name}</span>
-                            <span className="text-[9px] text-[#8C8C70] truncate">Sponsor: {r.sponsor}</span>
+                            <span className="font-bold text-[#0f172a] truncate">{r.name}</span>
+                            <span className="text-[9px] text-[#64748b] truncate">Sponsor: {r.sponsor}</span>
                           </div>
                           <span className={`text-[10px] font-mono px-2 py-1 rounded font-black shrink-0 ${
                             canAfford ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-500"
@@ -504,33 +504,33 @@ export const CustomerLoyaltyPortal: React.FC<CustomerLoyaltyPortalProps> = ({
 
       {/* SUBTAB 2: OUTLET MANDIRI REGISTRATION */}
       {customerActiveSubTab === "register" && (
-        <div className="max-w-xl mx-auto bg-[#FAF9F6] border border-[#E5E5DF] rounded-3xl p-6 shadow-md relative overflow-hidden text-left animate-fadeIn">
-          <div className="absolute top-0 right-0 py-0.5 px-3 bg-[#5A5A40] text-[8px] font-black text-white rounded-bl-xl uppercase tracking-widest">
+        <div className="max-w-xl mx-auto bg-[#ffffff] border border-[#e2e8f0] rounded-3xl p-6 shadow-md relative overflow-hidden text-left animate-fadeIn">
+          <div className="absolute top-0 right-0 py-0.5 px-3 bg-[#2563eb] text-[8px] font-black text-white rounded-bl-xl uppercase tracking-widest">
             FREE 50 POIN STARTER
           </div>
           
           <div className="mb-4">
             <div className="flex justify-between items-center">
-              <h3 className="text-sm font-black text-[#4A4A3C] uppercase tracking-wider">
+              <h3 className="text-sm font-black text-[#0f172a] uppercase tracking-wider">
                 Formulir Pendaftaran Profiling Mandiri Pelanggan
               </h3>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#5A5A40] text-white text-[10px] font-bold rounded-lg cursor-pointer hover:bg-[#4A4A3C]"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#2563eb] text-white text-[10px] font-bold rounded-lg cursor-pointer hover:bg-[#0f172a]"
               >
                 <Upload className="w-3 h-3" />
                 Impor .xlsx
               </button>
               <input type="file" ref={fileInputRef} accept=".xlsx, .xls" onChange={handleImportXLSX} className="hidden" />
             </div>
-            <p className="text-[11px] text-[#8C8C70] mt-0.5">
+            <p className="text-[11px] text-[#64748b] mt-0.5">
               Bergabunglah dengan program loyalitas pedagang retail DKR untuk mendapatkan akses potongan harga eksklusif dan instentif hadiah sponsor.
             </p>
           </div>
 
           <form onSubmit={handleCustomerSelfRegister} className="space-y-4">
             <div>
-              <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+              <label className="block text-[10px] font-bold text-[#64748b] uppercase tracking-wider mb-1">
                 Nama Toko / Outlet Anda *:
               </label>
               <input
@@ -539,12 +539,12 @@ export const CustomerLoyaltyPortal: React.FC<CustomerLoyaltyPortalProps> = ({
                 placeholder="Contoh: TOKO BERKAH ABADI"
                 value={selfRegForm.name}
                 onChange={(e) => setSelfRegForm({ ...selfRegForm, name: e.target.value })}
-                className="w-full bg-white border border-[#E5E5DF] rounded-xl px-3 py-2 text-xs font-semibold focus:outline-hidden focus:ring-1 focus:ring-[#5A5A40]"
+                className="w-full bg-white border border-[#e2e8f0] rounded-xl px-3 py-2 text-xs font-semibold focus:outline-hidden focus:ring-1 focus:ring-[#2563eb]"
               />
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+              <label className="block text-[10px] font-bold text-[#64748b] uppercase tracking-wider mb-1">
                 Alamat Lengkap Outlet *:
               </label>
               <textarea
@@ -553,13 +553,13 @@ export const CustomerLoyaltyPortal: React.FC<CustomerLoyaltyPortalProps> = ({
                 placeholder="Contoh: Jl. Sudirman No. 45 Semarang Tengah"
                 value={selfRegForm.address}
                 onChange={(e) => setSelfRegForm({ ...selfRegForm, address: e.target.value })}
-                className="w-full bg-white border border-[#E5E5DF] rounded-xl p-3 text-xs font-semibold focus:outline-hidden focus:ring-1 focus:ring-[#5A5A40]"
+                className="w-full bg-white border border-[#e2e8f0] rounded-xl p-3 text-xs font-semibold focus:outline-hidden focus:ring-1 focus:ring-[#2563eb]"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+                <label className="block text-[10px] font-bold text-[#64748b] uppercase tracking-wider mb-1">
                   Pilih Sales Wilayah Anda:
                 </label>
                 <select
@@ -572,7 +572,7 @@ export const CustomerLoyaltyPortal: React.FC<CustomerLoyaltyPortalProps> = ({
                       area: matchedSales?.area || selfRegForm.area
                     });
                   }}
-                  className="w-full bg-white border border-[#E5E5DF] rounded-xl px-2.5 py-2 text-xs font-semibold focus:outline-hidden"
+                  className="w-full bg-white border border-[#e2e8f0] rounded-xl px-2.5 py-2 text-xs font-semibold focus:outline-hidden"
                 >
                   <option value="">-- Pilih Salesman --</option>
                   {salesmen.map(s => (
@@ -584,13 +584,13 @@ export const CustomerLoyaltyPortal: React.FC<CustomerLoyaltyPortalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+                <label className="block text-[10px] font-bold text-[#64748b] uppercase tracking-wider mb-1">
                   Jenis & Sektor Toko:
                 </label>
                 <select
                   value={selfRegForm.jenisToko}
                   onChange={(e) => setSelfRegForm({ ...selfRegForm, jenisToko: e.target.value })}
-                  className="w-full bg-white border border-[#E5E5DF] rounded-xl px-2.5 py-2 text-xs font-semibold focus:outline-hidden"
+                  className="w-full bg-white border border-[#e2e8f0] rounded-xl px-2.5 py-2 text-xs font-semibold focus:outline-hidden"
                 >
                   <option value="Sembako">Sembako</option>
                   <option value="Kelontong">Kelontong Kecil</option>
@@ -601,8 +601,8 @@ export const CustomerLoyaltyPortal: React.FC<CustomerLoyaltyPortalProps> = ({
               </div>
             </div>
 
-            <div className="border-t border-dashed border-[#E5E5DF] pt-4">
-              <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+            <div className="border-t border-dashed border-[#e2e8f0] pt-4">
+              <label className="block text-[10px] font-bold text-[#64748b] uppercase tracking-wider mb-1">
                 Estimasi Kas Belanja Outlet Per Bulan (Rupiah):
               </label>
               
@@ -614,9 +614,9 @@ export const CustomerLoyaltyPortal: React.FC<CustomerLoyaltyPortalProps> = ({
                   step="500000"
                   value={selfRegForm.estimatedOmzet}
                   onChange={(e) => setSelfRegForm({ ...selfRegForm, estimatedOmzet: e.target.value })}
-                  className="flex-1 accent-[#5A5A40] h-1.5 bg-[#E5E5DF] rounded-lg cursor-pointer"
+                  className="flex-1 accent-[#2563eb] h-1.5 bg-[#e2e8f0] rounded-lg cursor-pointer"
                 />
-                <span className="font-mono text-xs font-black text-[#5A5A40] bg-[#FAF9F6] border border-[#E5E5DF] px-2.5 py-1 rounded-lg shrink-0">
+                <span className="font-mono text-xs font-black text-[#2563eb] bg-[#ffffff] border border-[#e2e8f0] px-2.5 py-1 rounded-lg shrink-0">
                   Rp {Number(selfRegForm.estimatedOmzet).toLocaleString("id-ID")}
                 </span>
               </div>
@@ -653,13 +653,13 @@ export const CustomerLoyaltyPortal: React.FC<CustomerLoyaltyPortalProps> = ({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+                <label className="block text-[10px] font-bold text-[#64748b] uppercase tracking-wider mb-1">
                   Status Sewa Bangunan:
                 </label>
                 <select
                   value={selfRegForm.ownership}
                   onChange={(e) => setSelfRegForm({ ...selfRegForm, ownership: e.target.value })}
-                  className="w-full bg-white border border-[#E5E5DF] rounded-xl px-2.5 py-1.5 text-xs text-[#4A4A3C]"
+                  className="w-full bg-white border border-[#e2e8f0] rounded-xl px-2.5 py-1.5 text-xs text-[#0f172a]"
                 >
                   <option value="Milik Sendiri">Milik Sendiri</option>
                   <option value="Sewa Kontrak">Sewa Kontrak Bulanan</option>
@@ -668,7 +668,7 @@ export const CustomerLoyaltyPortal: React.FC<CustomerLoyaltyPortalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-[#8C8C70] uppercase tracking-wider mb-1">
+                <label className="block text-[10px] font-bold text-[#64748b] uppercase tracking-wider mb-1">
                   Lama Toko Berdiri (Tahun):
                 </label>
                 <input
@@ -677,7 +677,7 @@ export const CustomerLoyaltyPortal: React.FC<CustomerLoyaltyPortalProps> = ({
                   max={60}
                   value={selfRegForm.storeAgeYears}
                   onChange={(e) => setSelfRegForm({ ...selfRegForm, storeAgeYears: e.target.value })}
-                  className="w-full bg-white border border-[#E5E5DF] rounded-xl px-2.5 py-1.5 text-xs text-[#4A4A3C]"
+                  className="w-full bg-white border border-[#e2e8f0] rounded-xl px-2.5 py-1.5 text-xs text-[#0f172a]"
                 />
               </div>
             </div>
@@ -685,7 +685,7 @@ export const CustomerLoyaltyPortal: React.FC<CustomerLoyaltyPortalProps> = ({
             <button
               type="submit"
               disabled={isCustomerSelfRegistering}
-              className="w-full bg-[#5A5A40] hover:bg-[#4A4A3C] text-white hover:text-white font-black text-xs uppercase tracking-wider py-4 rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-[#5A5A40]/10"
+              className="w-full bg-[#2563eb] hover:bg-[#0f172a] text-white hover:text-white font-black text-xs uppercase tracking-wider py-4 rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-[#2563eb]/10"
             >
               {isCustomerSelfRegistering ? (
                 <>
@@ -704,7 +704,7 @@ export const CustomerLoyaltyPortal: React.FC<CustomerLoyaltyPortalProps> = ({
 
       {/* Customer-facing registration success dialog overlay */}
       {registerSuccessName && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#4A4A3C]/45 backdrop-blur-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0f172a]/45 backdrop-blur-xs">
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -713,10 +713,10 @@ export const CustomerLoyaltyPortal: React.FC<CustomerLoyaltyPortalProps> = ({
             <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-300">
               <Check className="w-8 h-8 text-emerald-600 font-extrabold" />
             </div>
-            <h4 className="text-base font-extrabold text-[#4A4A3C] uppercase tracking-wider">
+            <h4 className="text-base font-extrabold text-[#0f172a] uppercase tracking-wider">
               REGISTRASI SUKSES!
             </h4>
-            <p className="text-xs text-[#8C8C70] mt-2 mb-4 leading-relaxed">
+            <p className="text-xs text-[#64748b] mt-2 mb-4 leading-relaxed">
               Mitra Toko <strong>{registerSuccessName.toUpperCase()}</strong> berhasil tersimpan & tersinkronisasi ke Google Sheets secara real-time!
             </p>
             <div className="bg-emerald-50 text-emerald-950 border border-emerald-100 p-3 rounded-2xl mb-5 text-xs font-bold leading-relaxed flex flex-col gap-0.5 text-left">
@@ -725,7 +725,7 @@ export const CustomerLoyaltyPortal: React.FC<CustomerLoyaltyPortalProps> = ({
             </div>
             <button
               onClick={() => setRegisterSuccessName("")}
-              className="w-full bg-[#5A5A40] text-white hover:bg-[#4A4A3C] font-semibold text-xs py-3 rounded-xl transition uppercase cursor-pointer"
+              className="w-full bg-[#2563eb] text-white hover:bg-[#0f172a] font-semibold text-xs py-3 rounded-xl transition uppercase cursor-pointer"
             >
               Lihat Kartu Poin Saya
             </button>

@@ -44,7 +44,7 @@ export const RewardModal: React.FC<RewardModalProps> = ({ isOpen, type, item, on
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-xl">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-black text-[#4A4A3C]">
+          <h2 className="text-lg font-black text-[#0f172a]">
             {item ? "Edit" : "Tambah"} {type === 'merchant' ? 'Reward Merchant' : 'Katalog Hadiah'}
           </h2>
           <button onClick={onClose}><X className="w-5 h-5" /></button>
