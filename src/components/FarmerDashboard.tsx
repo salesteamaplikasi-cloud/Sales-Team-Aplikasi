@@ -32,8 +32,11 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ reports }) => 
           <div className="space-y-3">
             {potentialStores.map(report => (
               <div key={report.id} className="p-3 border border-gray-100 rounded flex justify-between items-center bg-gray-50">
-                <span>Laporan: {report.id} ({report.date})</span>
-                <span className="font-bold text-green-700">Potensial</span>
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-medium text-sm text-gray-800">Laporan: {report.id} ({report.date})</span>
+                  <span className="text-xs text-gray-600">Sales: {report.salesmanName} | Tagihan Bayar Tunai: <strong>Rp {report.billsReceived.toLocaleString('id-ID')}</strong></span>
+                </div>
+                <span className="font-bold text-green-700 text-sm">Potensial</span>
               </div>
             ))}
           </div>
