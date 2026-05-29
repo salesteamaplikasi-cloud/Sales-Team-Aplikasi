@@ -162,14 +162,14 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
         }
         
         sheet.appendRow([
-          rep.id, rep.date, rep.salesmanName, rep.cycle,
+          rep.id, rep.date, rep.salesmanName, rep.cycle, rep.area,
           rep.tc, rep.cp, rep.ec, rep.skuTotal,
           rep.billsReceived, rep.billsTransfer || 0, rep.billsGiro || 0, rep.operationalCost, rep.notes || "",
           rep.createdAt, productsStr
         ]);
       }
       
-      autoResizeColumns(sheet, 15);
+      autoResizeColumns(sheet, 16);
       
       return ContentService.createTextOutput(JSON.stringify({ 
         success: true, 
@@ -344,22 +344,13 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
         })).setMimeType(ContentService.MimeType.JSON);
       }
       var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-      var rawData = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
+      var rawData = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getDisplayValues();
       var reportsList = [];
       for (var i = 0; i < rawData.length; i++) {
         var rowVal = rawData[i];
         var item = {};
         for (var j = 0; j < headers.length; j++) {
-          var headerKey = headers[j];
-          var cellVal = rowVal[j];
-          if (cellVal instanceof Date) {
-            var yr = cellVal.getFullYear();
-            var mo = ("0" + (cellVal.getMonth() + 1)).slice(-2);
-            var dy = ("0" + cellVal.getDate()).slice(-2);
-            item[headerKey] = yr + "-" + mo + "-" + dy;
-          } else {
-            item[headerKey] = cellVal;
-          }
+          item[headers[j]] = rowVal[j];
         }
         reportsList.push(item);
       }
@@ -1414,19 +1405,19 @@ export default function App() {
         const normalized: KpiReport[] = rawList.map((item: any, index: number) => {
           return {
             id: String(item["ID Laporan"] || item.id || `fetched-${index}`),
-            date: String(item["Tanggal KPI"] || item.date || ""),
+            date: String(item["Tanggal KPI"] || item.date || "").replace(/\//g, "-").split("-").reverse().join("-").length === 10 ? String(item["Tanggal KPI"] || item.date || "").split("/").reverse().join("-") : String(item["Tanggal KPI"] || item.date || ""),
             salesmanName: String(item["Nama Salesman"] || item.salesmanName || "SALES"),
             salesmanId: String(item["ID Salesman"] || item.salesmanId || "s-unknown"),
             cycle: String(item["Siklus"] || item.cycle || ""),
             area: String(item["Area"] || item.area || "Banyumas"),
-            tc: Number(item["TC (Amplop)"] || item.tc || 0),
-            cp: Number(item["CP (Kunjungan)"] || item.cp || 0),
-            ec: Number(item["EC (Order)"] || item.ec || 0),
-            skuTotal: Number(item["SKU Total"] || item.skuTotal || 0),
+            tc: parseInt(String(item["TC (Amplop)"] || item.tc || "0").replace(/[^0-9]/g, ""), 10) || 0,
+            cp: parseInt(String(item["CP (Kunjungan)"] || item.cp || "0").replace(/[^0-9]/g, ""), 10) || 0,
+            ec: parseInt(String(item["EC (Order)"] || item.ec || "0").replace(/[^0-9]/g, ""), 10) || 0,
+            skuTotal: parseInt(String(item["SKU Total"] || item.skuTotal || "0").replace(/[^0-9]/g, ""), 10) || 0,
             operationalCost: parseInt(String(item["Biaya Operasional (Rp)"] || item.operationalCost || 0).replace(/[^0-9]/g, ""), 10) || 0,
-            billsReceived: Number(item["Tagihan Bayar Tunai"] || item["Tagihan Didapat (Rp)"] || item.billsReceived || 0),
-            billsTransfer: Number(item["Tagihan Bayar Transfer"] || item.billsTransfer || 0),
-            billsGiro: Number(item["Tagihan Giro"] || item.billsGiro || 0),
+            billsReceived: parseInt(String(item["Tagihan Bayar Tunai"] || item["Tagihan Didapat (Rp)"] || item.billsReceived || "0").replace(/[^0-9]/g, ""), 10) || 0,
+            billsTransfer: parseInt(String(item["Tagihan Bayar Transfer"] || item.billsTransfer || "0").replace(/[^0-9]/g, ""), 10) || 0,
+            billsGiro: parseInt(String(item["Tagihan Giro"] || item.billsGiro || "0").replace(/[^0-9]/g, ""), 10) || 0,
             notes: String(item["Catatan"] || item.notes || ""),
             createdAt: String(item["Tanggal Dibuat"] || item.createdAt || ""),
             productsDetail: [] // empty placeholders

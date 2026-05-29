@@ -34,7 +34,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ reports }) => 
               <div key={report.id} className="p-3 border border-gray-100 rounded flex justify-between items-center bg-gray-50">
                 <div className="flex flex-col gap-0.5">
                   <span className="font-medium text-sm text-gray-800">Laporan: {report.id} ({report.date})</span>
-                  <span className="text-xs text-gray-600">Sales: {report.salesmanName} | Total Tagihan Termasuk Transfer & Giro: <strong>Rp {(report.billsReceived + (report.billsTransfer || 0) + (report.billsGiro || 0)).toLocaleString('id-ID')}</strong></span>
+                  <span className="text-xs text-gray-600">Sales: {report.salesmanName} | Tagihan Bayar Tunai: <strong>Rp {report.billsReceived.toLocaleString('id-ID')}</strong></span>
                 </div>
                 <span className="font-bold text-green-700 text-sm">Potensial</span>
               </div>
@@ -52,7 +52,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({ reports }) => 
               <div key={report.id} className="p-3 border border-gray-100 rounded flex justify-between items-center bg-gray-50">
                 <div className="flex flex-col gap-0.5">
                   <span className="font-medium text-sm text-gray-800">Laporan: {report.id} ({report.date})</span>
-                  <span className="text-xs text-gray-600">Sales: {report.salesmanName} | Total Tagihan Termasuk Transfer & Giro: <strong>Rp {(report.billsReceived + (report.billsTransfer || 0) + (report.billsGiro || 0)).toLocaleString('id-ID')}</strong></span>
+                  <span className="text-xs text-gray-600">Tagihan Bayar Tunai: <strong>Rp {report.billsReceived.toLocaleString('id-ID')}</strong></span>
                 </div>
                 <span className="font-bold text-yellow-700 text-sm">Turun</span>
               </div>
