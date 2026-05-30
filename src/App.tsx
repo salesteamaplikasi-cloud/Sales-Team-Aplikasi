@@ -46,7 +46,8 @@ import {
   CalendarRange,
   LogOut,
   Target,
-  Shield
+  Shield,
+  Upload
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -553,6 +554,56 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify({ success: true, nooLogs: nooList })).setMimeType(ContentService.MimeType.JSON);
     }
 
+    // AKSI 13: Tarik Laporan Khusus Supervisor (Filter Hanya IMAM)
+    if (data.action === "getSupervisorImam") {
+      var sheet = ss.getSheetByName("Laporan KPI Sales");
+      var sheetNoo = ss.getSheetByName("Log NOO Salesman");
+      
+      var imamReports = [];
+      if (sheet && sheet.getLastRow() > 1) {
+        var h1 = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+        var d1 = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+        var snIdx = h1.indexOf("Nama Salesman");
+        if (snIdx !== -1) {
+          for (var i = 0; i < d1.length; i++) {
+            if (String(d1[i][snIdx]).toLowerCase().trim() === "imam") {
+              var itm = {};
+              for (var j = 0; j < h1.length; j++) {
+                var rawVal = d1[i][j];
+                itm[h1[j]] = (rawVal instanceof Date) ? (rawVal.getFullYear() + "-" + ("0" + (rawVal.getMonth()+1)).slice(-2) + "-" + ("0" + rawVal.getDate()).slice(-2)) : rawVal;
+              }
+              imamReports.push(itm);
+            }
+          }
+        }
+      }
+
+      var imamNoo = [];
+      if (sheetNoo && sheetNoo.getLastRow() > 1) {
+        var h2 = sheetNoo.getRange(1, 1, 1, sheetNoo.getLastColumn()).getValues()[0];
+        var d2 = sheetNoo.getRange(2, 1, sheetNoo.getLastRow() - 1, sheetNoo.getLastColumn()).getValues();
+        var smIdx = h2.indexOf("Nama Salesman");
+        if (smIdx !== -1) {
+          for (var x = 0; x < d2.length; x++) {
+            if (String(d2[x][smIdx]).toLowerCase().trim() === "imam") {
+              var nItm = {};
+              for (var y = 0; y < h2.length; y++) {
+                var cVal = d2[x][y];
+                nItm[h2[y]] = (cVal instanceof Date) ? (cVal.getFullYear() + "-" + ("0" + (cVal.getMonth()+1)).slice(-2) + "-" + ("0" + cVal.getDate()).slice(-2)) : cVal;
+              }
+              imamNoo.push(nItm);
+            }
+          }
+        }
+      }
+      
+      return ContentService.createTextOutput(JSON.stringify({ 
+        success: true, 
+        imamReports: imamReports,
+        imamNoo: imamNoo
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     return ContentService.createTextOutput(JSON.stringify({ 
       success: false, 
       message: "Operasi atau aksi '" + data.action + "' tidak dikenali." 
@@ -580,6 +631,7 @@ export default function App() {
   const [salesmanGoals, setSalesmanGoals] = useState<SalesmanGoal[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [reports, setReports] = useState<KpiReport[]>([]);
+  const [supervisorDateFilter, setSupervisorDateFilter] = useState<string>("");
   
   // Collapsible Sidebar & Mobile navigation states
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
@@ -2436,6 +2488,104 @@ export default function App() {
   const grandTotalCollection = targetDatasetForKpi.reduce((sum, r) => sum + r.billsReceived, 0);
   const avgSkuPerVisit = targetDatasetForKpi.length > 0 ? (targetDatasetForKpi.reduce((sum, r) => sum + r.skuTotal, 0) / targetDatasetForKpi.length).toFixed(1) : "0";
 
+  const handleImportExcelSupervisor = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = new Uint8Array(event.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        
+        let newReportsAdded = 0;
+        let newNooAdded = 0;
+        
+        const importedReports: KpiReport[] = [];
+        const importedNoo: NooRecord[] = [];
+
+        workbook.SheetNames.forEach(sheetName => {
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+          
+          if (!jsonData || jsonData.length === 0) return;
+          
+          const firstRow: any = jsonData[0];
+          
+          // Check if it's KPI Sheet
+          if (firstRow["TC (Total Call)"] !== undefined) {
+            jsonData.forEach((row: any) => {
+              if (!row["Tanggal"]) return;
+              importedReports.push({
+                id: 'imported-' + Date.now() + Math.random().toString(36).substr(2, 9),
+                salesmanId: salesmen.find(s => s.name.toLowerCase() === (row["Nama Salesman"] || "").toLowerCase())?.id || "unknown",
+                salesmanName: row["Nama Salesman"] || "-",
+                date: row["Tanggal"] || "-",
+                cycle: row["Siklus"] || "-",
+                area: "-", 
+                tc: Number(row["TC (Total Call)"] || 0),
+                cp: Number(row["CP (Effective Call)"] || 0),
+                ec: Number(row["EC (Effective Customer)"] || 0),
+                skuTotal: Number(row["Total SKU"] || 0),
+                operationalCost: Number(row["Biaya Operasional (Rp)"] || 0),
+                billsReceived: Number(row["Tagihan Tunai"] || 0),
+                billsTransfer: Number(row["Tagihan Transfer"] || 0),
+                billsGiro: Number(row["Tagihan Giro"] || 0),
+                notes: row["Catatan / Kendala"] || "",
+                createdAt: new Date().toISOString()
+              });
+            });
+          }
+          
+          // Check if it's NOO sheet
+          if (firstRow["Warung / Toko Kelontong"] !== undefined) {
+            jsonData.forEach((row: any) => {
+              if (!row["Tanggal Log"]) return;
+              importedNoo.push({
+                id: String(row["ID Log"] || 'imported-noo-' + Date.now() + Math.random().toString(36).substr(2, 9)),
+                salesmanId: salesmen.find(s => s.name.toLowerCase() === (row["Nama Salesman"] || "").toLowerCase())?.id || row["ID Salesman"] || "unknown",
+                salesmanName: row["Nama Salesman"] || "-",
+                date: row["Tanggal Log"] || "-",
+                warung: Number(row["Warung / Toko Kelontong"] || 0),
+                store: Number(row["Store / Toko Modern"] || 0),
+                kiosk: Number(row["Kios Atap"] || 0),
+                wholesaler: Number(row["Grosir / Wholesaler"] || 0)
+              });
+            });
+          }
+        });
+        
+        let msg = "";
+        if (importedReports.length > 0) {
+          const newReportsList = [...reports, ...importedReports];
+          setReports(newReportsList);
+          localStorage.setItem("KPI_DB_REPORTS", JSON.stringify(newReportsList));
+          newReportsAdded = importedReports.length;
+          msg += `Berhasil impor ${newReportsAdded} laporan KPI Excel! `;
+        }
+        
+        if (importedNoo.length > 0) {
+          const newNooList = [...nooRecords, ...importedNoo];
+          setNooRecords(newNooList);
+          localStorage.setItem("KPI_DB_NOO_LOGS", JSON.stringify(newNooList));
+          newNooAdded = importedNoo.length;
+          msg += `Berhasil impor ${newNooAdded} log NOO Excel!`;
+        }
+
+        if (newReportsAdded > 0 || newNooAdded > 0) {
+          showToast(msg, "success");
+        } else {
+          showToast("Format Excel tidak sesuai atau tidak ada data yang valid ditemukan.", "error");
+        }
+      } catch (error) {
+        console.error("Excel import error:", error);
+        showToast("Gagal membaca file Excel. Pastikan formatnya benar.", "error");
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value = ''; // reset input
+  };
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (loginEmail === "sales@gmail.com" && loginPassword === "Sales#123") {
@@ -3668,7 +3818,15 @@ export default function App() {
           )}
 
           {/* TAB 8: SUPERVISOR PAGE */}
-          {activeTab === "supervisor" && (
+          {activeTab === "supervisor" && (() => {
+            const svReports = supervisorDateFilter 
+               ? reports.filter(r => r.date === supervisorDateFilter) 
+               : reports;
+            const svNoo = supervisorDateFilter
+               ? nooRecords.filter(n => n.date === supervisorDateFilter)
+               : nooRecords;
+               
+            return (
             <motion.div
               layout
               key="supervisor-tab"
@@ -3687,14 +3845,55 @@ export default function App() {
                 <p className="text-sm text-[#64748b]">
                   Pantau pergerakan role khusus Aris (Farmer) dan Imam (Hunter).
                 </p>
+
+                <div className="mt-4 max-w-xs">
+                  <label className="block text-[10px] font-bold text-[#64748b] uppercase tracking-wider mb-1">
+                    Filter Tanggal (Opsional)
+                  </label>
+                  <div className="relative">
+                    <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748b]" />
+                    <input
+                      type="date"
+                      value={supervisorDateFilter}
+                      onChange={(e) => setSupervisorDateFilter(e.target.value)}
+                      className="w-full bg-[#f8fafc] border border-[#e2e8f0] pl-9 pr-3 py-2 rounded-xl text-xs font-bold text-[#0f172a] focus:border-[#2563eb] focus:outline-hidden transition"
+                    />
+                  </div>
+                  {supervisorDateFilter && (
+                    <button
+                      onClick={() => setSupervisorDateFilter("")}
+                      className="mt-1 text-[10px] text-rose-600 hover:text-rose-700 font-bold"
+                    >
+                      Reset Filter Tanggal
+                    </button>
+                  )}
+                </div>
+
+                {/* FILE IMPORT ACTION */}
+                <div className="mt-6 flex flex-wrap gap-4 relative z-10">
+                  <label className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold uppercase tracking-wider px-5 py-3 rounded-xl transition cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2">
+                    <Upload className="w-4 h-4" />
+                    Impor Data XLSX
+                    <input
+                      type="file"
+                      accept=".xlsx, .xls"
+                      className="hidden"
+                      onChange={handleImportExcelSupervisor}
+                    />
+                  </label>
+                  <p className="text-[10px] text-[#64748b] max-w-sm">
+                    Gunakan tombol ini untuk mengimpor data laporan hasil ekspor (format .xlsx) dari Google Spreadsheets.
+                  </p>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
-                <FarmerDashboard reports={reports} />
-                <HunterDashboard nooRecords={nooRecords} />
+                <FarmerDashboard reports={svReports} />
+                <HunterDashboard nooRecords={svNoo} reports={svReports} />
               </div>
             </motion.div>
-          )}
+            );
+          })()}
 
           {activeTab === "salesmen" && (
             <motion.div
