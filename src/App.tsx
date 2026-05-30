@@ -45,7 +45,8 @@ import {
   CalendarDays,
   CalendarRange,
   LogOut,
-  Target
+  Target,
+  Shield
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -64,6 +65,7 @@ import {
 import { CustomerLoyaltyPortal } from "./components/CustomerLoyaltyPortal";
 import { CustomerSalesTable } from "./components/CustomerSalesTable";
 import { FarmerDashboard } from "./components/FarmerDashboard";
+import { HunterDashboard } from "./components/HunterDashboard";
 
 const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
   try {
@@ -567,7 +569,7 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
 export default function App() {
   // --- AUTHENTICATION STATE ---
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return localStorage.getItem("KPI_IS_AUTHENTICATED") === "true";
+    return localStorage.getItem("KPI_IS_AUTHENTICATED_V2") === "true";
   });
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -586,7 +588,7 @@ export default function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<"form" | "salesmen" | "products" | "reports" | "sheets" | "loyalty" | "kpisales" | "claims" | "customerData">(() => {
+  const [activeTab, setActiveTab] = useState<"form" | "salesmen" | "products" | "reports" | "sheets" | "loyalty" | "kpisales" | "claims" | "customerData" | "supervisor">(() => {
     try {
       const p = new URLSearchParams(window.location.search);
       if (p.get("mode") === "customer-loyalty" || p.get("view") === "loyalty") {
@@ -2438,7 +2440,7 @@ export default function App() {
     e.preventDefault();
     if (loginEmail === "sales@gmail.com" && loginPassword === "Sales#123") {
       setIsAuthenticated(true);
-      localStorage.setItem("KPI_IS_AUTHENTICATED", "true");
+      localStorage.setItem("KPI_IS_AUTHENTICATED_V2", "true");
       setLoginError("");
     } else {
       setLoginError("Email atau password tidak valid.");
@@ -2662,6 +2664,22 @@ export default function App() {
 
           <div className="border-b border-[#e2e8f0]/60 mx-2"></div>
 
+          {/* Item 8 - NEW: Supervisor Page */}
+          <button
+            onClick={() => setActiveTab("supervisor")}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all ${
+              activeTab === "supervisor"
+                ? "bg-[#2563eb] text-[#ffffff] shadow-sm font-bold"
+                : "text-[#64748b] hover:text-[#0f172a] hover:bg-[#e2e8f0]/30"
+            }`}
+            title="Supervisor"
+          >
+            <Shield className="w-4 h-4 shrink-0 text-rose-600" />
+            {!isSidebarCollapsed && <span className="truncate">Supervisor</span>}
+          </button>
+
+          <div className="border-b border-[#e2e8f0]/60 mx-2"></div>
+
           {/* Item 2: Database Salesman */}
           <button
             onClick={() => setActiveTab("salesmen")}
@@ -2752,7 +2770,7 @@ export default function App() {
             <button
               onClick={() => {
                 setIsAuthenticated(false);
-                localStorage.setItem("KPI_IS_AUTHENTICATED", "false");
+                localStorage.setItem("KPI_IS_AUTHENTICATED_V2", "false");
                 setLoginPassword("");
               }}
               className="w-full flex items-center gap-3 px-3 py-2.5 text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all text-rose-600 hover:bg-rose-50"
@@ -2897,6 +2915,24 @@ export default function App() {
 
                 <div className="border-b border-[#e2e8f0]/60 mx-1"></div>
 
+                {/* Supervisor Menu */}
+                <button
+                  onClick={() => {
+                    setActiveTab("supervisor");
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className={`w-full py-2.5 px-4 rounded-xl text-left text-xs font-black uppercase tracking-wider flex items-center justify-between ${
+                    activeTab === "supervisor" ? "bg-[#2563eb] text-[#ffffff]" : "bg-[#e2e8f0]/20 text-[#64748b]"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Shield className="w-4 h-4 text-rose-600" />
+                    <span>Supervisor</span>
+                  </div>
+                </button>
+
+                <div className="border-b border-[#e2e8f0]/60 mx-1"></div>
+
                 {/* 3. Database Salesman */}
                 <button
                   onClick={() => {
@@ -2985,7 +3021,7 @@ export default function App() {
                   <button
                     onClick={() => {
                       setIsAuthenticated(false);
-                      localStorage.setItem("KPI_IS_AUTHENTICATED", "false");
+                      localStorage.setItem("KPI_IS_AUTHENTICATED_V2", "false");
                       setLoginPassword("");
                       setIsMobileMenuOpen(false);
                     }}
@@ -3628,6 +3664,35 @@ export default function App() {
               className="max-w-6xl mx-auto w-full"
             >
               <CustomerSalesTable />
+            </motion.div>
+          )}
+
+          {/* TAB 8: SUPERVISOR PAGE */}
+          {activeTab === "supervisor" && (
+            <motion.div
+              layout
+              key="supervisor-tab"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.25 }}
+              className="max-w-6xl mx-auto w-full space-y-6"
+            >
+              <div className="bg-[#ffffff] border border-[#e2e8f0] rounded-3xl p-6 shadow-xs relative overflow-hidden">
+                <div className="absolute top-0 right-0 -mr-20 -mt-10 w-80 h-80 bg-rose-50/50 rounded-full blur-3xl -z-10" />
+                <h2 className="text-2xl font-black font-serif italic text-[#0f172a] uppercase tracking-tight flex items-center gap-2 mb-2">
+                  <Shield className="w-6 h-6 text-rose-600" />
+                  Supervisor Dashboard
+                </h2>
+                <p className="text-sm text-[#64748b]">
+                  Pantau pergerakan role khusus Aris (Farmer) dan Imam (Hunter).
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+                <FarmerDashboard reports={reports} />
+                <HunterDashboard nooRecords={nooRecords} />
+              </div>
             </motion.div>
           )}
 
@@ -5402,7 +5467,6 @@ function createCustomerProfilingForm() {
               className="space-y-6"
             >
               {/* Header Banner */}
-              <FarmerDashboard reports={reports} />
               <div className="bg-gradient-to-r from-rose-600 to-amber-600 rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
                 <div className="absolute top-0 right-0 -mr-20 -mt-10 w-80 h-80 bg-white/10 rounded-full blur-2xl" />
                 <div className="absolute bottom-0 right-2 w-32 h-32 bg-amber-400/20 rounded-full blur-xl" />
@@ -5501,18 +5565,6 @@ function createCustomerProfilingForm() {
                 >
                   <Users className="w-4 h-4" />
                   Semua Salesman
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setKpiSalesmanTab("Imam")}
-                  className={`flex-grow sm:flex-grow-0 px-6 py-2.5 rounded-xl text-xs uppercase font-extrabold cursor-pointer transition flex justify-center items-center gap-2 ${
-                    kpiSalesmanTab === "Imam" 
-                      ? "bg-rose-600 text-white shadow-xs" 
-                      : "text-rose-900 hover:bg-rose-500/10 font-bold"
-                  }`}
-                >
-                  <User className="w-4 h-4" />
-                  NOO Imam
                 </button>
               </div>
 
@@ -5896,7 +5948,32 @@ function createCustomerProfilingForm() {
                     groups[groupKey].billsReceived += Number(rep.billsReceived || 0);
                   });
 
-                  const groupedList = Object.values(groups);
+                  // NEW Calculation Engine for Ranking Salesmen
+                  const groupedListRaw = Object.values(groups);
+                  
+                  // Compute KPIs and score for ranking
+                  const rankedList = groupedListRaw.filter((g: any) => {
+                    // Hide Aris and Imam from the main KPIs tab as they are moved to Supervisor
+                    const name = g.salesmanName.toLowerCase();
+                    return name !== 'aris' && name !== 'imam';
+                  }).map((g: any) => {
+                    const cntDays = g.dates.size || 1;
+                    const tcSum = g.tc;
+                    const cpSum = g.cp;
+                    const ecSum = g.ec;
+                    const skuSum = g.skuTotal;
+                    
+                    const cpPct = tcSum > 0 ? (cpSum / tcSum) * 100 : 0;
+                    const ecPct = cpSum > 0 ? (ecSum / cpSum) * 100 : 0;
+                    
+                    // Ratio blending for ranking logic (e.g., CP/TC vs EC/CP)
+                    const rankScore = (cpPct * 0.4) + (ecPct * 0.6);
+                    
+                    return { ...g, cntDays, tcSum, cpSum, ecSum, skuSum, cpPct, ecPct, rankScore };
+                  });
+                  
+                  // Sort descending by rankScore to get the top performers first
+                  rankedList.sort((a, b) => b.rankScore - a.rankScore);
 
                   if (kpiDataSource === "sheets" && fetchedReports.length === 0) {
                     return (
@@ -5928,7 +6005,7 @@ function createCustomerProfilingForm() {
                     );
                   }
 
-                  if (groupedList.length === 0) {
+                  if (rankedList.length === 0) {
                     return (
                       <div className="col-span-full text-center p-12 bg-[#ffffff] border border-[#e2e8f0] rounded-3xl text-sm text-[#64748b] font-bold">
                         Tidak ada data pencapaian KPI yang cocok dengan filter parameter terpilih.
@@ -5936,15 +6013,17 @@ function createCustomerProfilingForm() {
                     );
                   }
 
-                  return groupedList.map((g: any, idx: number) => {
-                    const cntDays = g.dates.size || 1;
-                    const tcSum = g.tc;
-                    const cpSum = g.cp;
-                    const ecSum = g.ec;
-                    const skuSum = g.skuTotal;
+                  return rankedList.map((g: any, idx: number) => {
+                    const isTopPerformer = idx === 0 && g.rankScore > 0;
                     
-                    const cpPct = tcSum > 0 ? (cpSum / tcSum) * 100 : 0;
-                    const ecPct = cpSum > 0 ? (ecSum / cpSum) * 100 : 0;
+                    const cntDays = g.cntDays;
+                    const tcSum = g.tcSum;
+                    const cpSum = g.cpSum;
+                    const ecSum = g.ecSum;
+                    const skuSum = g.skuSum;
+                    
+                    const cpPct = g.cpPct;
+                    const ecPct = g.ecPct;
                     
                     const targetSku = Math.round(112.5 * cntDays);
                     const skuPct = targetSku > 0 ? (skuSum / targetSku) * 100 : 0;
@@ -5981,7 +6060,7 @@ function createCustomerProfilingForm() {
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: idx * 0.05 }}
-                        className="w-full bg-[#ffffff] border-t-4 border-rose-600 rounded-3xl p-5 border border-[#e2e8f0] shadow-md hover:shadow-xl transition-all relative flex flex-col justify-between text-left"
+                        className="w-full bg-[#fcf8f2] border-t-4 border-rose-600 rounded-3xl p-5 border border-[#e2e8f0] shadow-md hover:shadow-xl transition-all relative flex flex-col justify-between text-left"
                       >
                         <div className="flex items-center justify-between text-[#64748b] text-[10px] font-black uppercase tracking-wider mb-2">
                           <span className="flex items-center gap-1 text-[9px] truncate max-w-[70%]">
@@ -5999,8 +6078,14 @@ function createCustomerProfilingForm() {
 
                         <div className="flex items-start justify-between mt-1 mb-4">
                           <div>
-                            <h4 className="text-xl font-serif italic font-black tracking-tight text-[#0f172a]">
+                            <h4 className="text-xl font-serif italic font-black tracking-tight text-[#0f172a] flex items-center gap-2">
                               {g.salesmanName}
+                              {isTopPerformer && (
+                                <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1 shadow-xs">
+                                  <Crown className="w-3 h-3 text-amber-500" />
+                                  Top Performer
+                                </span>
+                              )}
                             </h4>
                           </div>
                           <div className="bg-[#2563eb]/10 text-[#2563eb] text-[9.5px] font-extrabold px-2 py-0.5 rounded-lg flex items-center gap-1 uppercase shrink-0">
