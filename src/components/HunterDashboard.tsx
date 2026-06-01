@@ -27,7 +27,7 @@ export const HunterDashboard: React.FC<HunterDashboardProps> = ({ nooRecords, re
   const cpPct = tcSum > 0 ? (cpSum / tcSum) * 100 : 0;
   const ecPct = cpSum > 0 ? (ecSum / cpSum) * 100 : 0;
   
-  const targetSku = Math.round(112.5 * cntDays);
+  const targetSku = Math.round(ecSum * 15);
   const skuPct = targetSku > 0 ? (skuSum / targetSku) * 100 : 0;
   
   const isLayak = cpPct >= 80 && ecPct >= 40;

@@ -6224,7 +6224,7 @@ function createCustomerProfilingForm() {
                     const cpPct = g.cpPct;
                     const ecPct = g.ecPct;
                     
-                    const targetSku = Math.round(112.5 * cntDays);
+                    const targetSku = Math.round(ecSum * 15);
                     const skuPct = targetSku > 0 ? (skuSum / targetSku) * 100 : 0;
 
                     // Suitability decision: CP % >= 80% and EC % >= 40%
@@ -6582,7 +6582,7 @@ function createCustomerProfilingForm() {
                 const sCpPct = sTc > 0 ? (sCp / sTc) * 100 : 0;
                 const sEcPct = sCp > 0 ? (sEc / sCp) * 105 : 0; // standard scaling for aesthetics
                 const sCntDays = salesmanReports.length || 1;
-                const sTargetSku = Math.round(112.5 * sCntDays);
+                const sTargetSku = Math.round(sEc * 15);
                 const sSkuPct = sTargetSku > 0 ? (sSku / sTargetSku) * 100 : 0;
 
                 const isLayak = sCpPct >= 80 && sEcPct >= 40;
