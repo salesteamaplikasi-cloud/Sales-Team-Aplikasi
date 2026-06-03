@@ -61,7 +61,7 @@ export interface KpiReport {
   salesmanName: string;
   date: string; // YYYY-MM-DD
   cycle: string; // e.g., "Senin Ganjil", "Rabu Genap", etc.
-  area: string; // <--- ADD THIS
+  area?: string; // <--- ADD THIS
   tc: number; // TC (Amplop)
   cp: number; // CP (Kunjungan)
   ec: number; // EC (Order)

@@ -47,7 +47,11 @@ import {
   LogOut,
   Target,
   Shield,
-  Upload
+  Upload,
+  AlertCircle,
+  Star,
+  ThumbsUp,
+  ThumbsDown
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -6227,8 +6231,7 @@ function createCustomerProfilingForm() {
                     const targetSku = Math.round(ecSum * 15);
                     const skuPct = targetSku > 0 ? (skuSum / targetSku) * 100 : 0;
 
-                    // Suitability decision: CP % >= 80% and EC % >= 40%
-                    const isLayak = cpPct >= 80 && ecPct >= 40;
+                    const isLayak = cpPct >= 80 && ecPct >= 40 && skuPct >= 100;
 
                     const smMatch = salesmen.find(s => s.name.toUpperCase().trim() === g.salesmanName.toUpperCase().trim());
                     const salesmanArea = smMatch ? smMatch.area : (g.salesmanName.toUpperCase().trim() === "RINO" ? "CILONGOK" : "DKR SEKTOR");
@@ -6259,135 +6262,133 @@ function createCustomerProfilingForm() {
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: idx * 0.05 }}
-                        className="w-full bg-[#fcf8f2] border-t-4 border-rose-600 rounded-3xl p-5 border border-[#e2e8f0] shadow-md hover:shadow-xl transition-all relative flex flex-col justify-between text-left"
+                        className="w-full bg-[#ffffff] rounded-xl p-5 border border-[#e2e8f0] shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] relative flex flex-col justify-between text-left"
                       >
-                        <div className="flex items-center justify-between text-[#64748b] text-[10px] font-black uppercase tracking-wider mb-2">
-                          <span className="flex items-center gap-1 text-[9px] truncate max-w-[70%]">
-                            {headerIcon}
-                            <span className="truncate">{headerPeriodText}</span>
+                        <div className="flex items-center justify-between text-[#0f172a] text-[10px] font-black uppercase tracking-wider mb-3">
+                          <span className="flex items-center gap-1.5 text-[9px] truncate max-w-[70%] text-[#0f172a]">
+                            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                            <span className="truncate tracking-widest">{headerPeriodText}</span>
                           </span>
-                          <span className={`px-2.5 py-0.5 rounded-full font-black text-[9px] shrink-0 ${
-                            isLayak 
-                              ? "bg-emerald-100 text-emerald-800 border border-emerald-200" 
-                              : "bg-rose-100 text-rose-800 border border-rose-200"
-                          }`}>
-                            {isLayak ? "LAYAK" : "TIDAK LAYAK"}
+                          <span className="text-[#0f172a] text-[10px] font-extrabold flex items-center gap-1 uppercase shrink-0 tracking-widest">
+                            <MapPin className="w-3 h-3 text-[#0f172a]" strokeWidth={2.5} />
+                            {salesmanArea}
                           </span>
                         </div>
 
-                        <div className="flex items-start justify-between mt-1 mb-4">
-                          <div>
-                            <h4 className="text-xl font-serif italic font-black tracking-tight text-[#0f172a] flex items-center gap-2">
-                              {g.salesmanName}
+                        <div className="flex items-start justify-between mt-2 mb-4">
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-3">
+                              {isLayak ? (
+                                <ThumbsUp className="w-5 h-5 text-emerald-600 shrink-0" />
+                              ) : (
+                                <ThumbsDown className="w-5 h-5 text-rose-600 shrink-0" />
+                              )}
+                              <h4 className="text-2xl font-serif font-black text-[#0f172a] uppercase tracking-wide">
+                                {g.salesmanName}
+                              </h4>
                               {isTopPerformer && (
-                                <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1 shadow-xs">
-                                  <Crown className="w-3 h-3 text-amber-500" />
+                                <span className="text-rose-600 text-[9px] font-bold px-2.5 py-0.5 rounded-full border border-rose-600 flex items-center gap-1 tracking-widest uppercase bg-transparent">
+                                  <Star className="w-3 h-3 text-rose-600" />
                                   Top Performer
                                 </span>
                               )}
-                            </h4>
-                          </div>
-                          <div className="bg-[#2563eb]/10 text-[#2563eb] text-[9.5px] font-extrabold px-2 py-0.5 rounded-lg flex items-center gap-1 uppercase shrink-0">
-                            <MapPin className="w-3 h-3 text-[#2563eb]" />
-                            {salesmanArea}
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-4 gap-2 mb-4 text-center">
-                          <div className="bg-rose-600 rounded-2xl p-1.5 text-white">
-                            <span className="block text-[8px] font-bold opacity-80 uppercase tracking-widest leading-none">TC</span>
-                            <span className="text-sm font-extrabold font-mono leading-tight">{tcSum}</span>
-                          </div>
-                          <div className="bg-[#e2e8f0]/40 text-[#0f172a] rounded-2xl p-1.5 border border-[#e2e8f0]">
-                            <span className="block text-[8px] font-extrabold text-[#64748b] uppercase tracking-widest leading-none">CP</span>
-                            <span className="text-sm font-extrabold font-mono leading-tight">{cpSum}</span>
-                          </div>
-                          <div className="bg-rose-600 rounded-2xl p-1.5 text-white">
-                            <span className="block text-[8px] font-bold opacity-80 uppercase tracking-widest leading-none">EC</span>
-                            <span className="text-sm font-extrabold font-mono leading-tight">{ecSum}</span>
-                          </div>
-                          <div className="bg-[#e2e8f0]/40 text-[#0f172a] rounded-2xl p-1.5 border border-[#e2e8f0]">
-                            <span className="block text-[8px] font-extrabold text-[#64748b] uppercase tracking-widest leading-none">SKU</span>
-                            <span className="text-sm font-extrabold font-mono leading-tight">{skuSum}</span>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2.5 mt-2 mb-4">
-                          <div>
-                            <div className="flex justify-between text-[9px] font-black uppercase text-[#64748b] mb-0.5">
-                              <span>Pencapaian Call Plan (CP/TC)</span>
-                              <span className="text-emerald-700 font-mono font-bold">{cpPct.toFixed(1)}%</span>
                             </div>
-                            <div className="w-full h-2 bg-[#e2e8f0]/40 rounded-full overflow-hidden">
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-4 gap-3 mb-5 text-center">
+                          <div className="bg-[#ffffff] rounded-lg py-2.5 border border-[#e2e8f0]">
+                            <span className="block text-[10px] font-bold text-[#0f172a] tracking-widest leading-none mb-1.5">TC</span>
+                            <span className="text-lg font-serif font-black text-[#0f172a] leading-none">{tcSum}</span>
+                          </div>
+                          <div className="bg-[#ffffff] rounded-lg py-2.5 border border-[#e2e8f0]">
+                            <span className="block text-[10px] font-bold text-[#0f172a] tracking-widest leading-none mb-1.5">CP</span>
+                            <span className="text-lg font-serif font-black text-[#0f172a] leading-none">{cpSum}</span>
+                          </div>
+                          <div className="bg-[#ffffff] rounded-lg py-2.5 border border-[#e2e8f0]">
+                            <span className="block text-[10px] font-bold text-[#0f172a] tracking-widest leading-none mb-1.5">EC</span>
+                            <span className="text-lg font-serif font-black text-[#0f172a] leading-none">{ecSum}</span>
+                          </div>
+                          <div className="bg-[#ffffff] rounded-lg py-2.5 border border-[#e2e8f0]">
+                            <span className="block text-[10px] font-bold text-[#0f172a] tracking-widest leading-none mb-1.5">SKU</span>
+                            <span className="text-lg font-serif font-black text-[#0f172a] leading-none">{skuSum}</span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-4 mt-2 mb-6">
+                          <div>
+                            <div className="flex justify-between text-[10px] font-bold text-[#0f172a] mb-1.5 uppercase tracking-widest">
+                              <span>Pencapaian Call Plan (CP/TC)</span>
+                              <span>{cpPct.toFixed(1)}%</span>
+                            </div>
+                            <div className="w-full h-1.5 bg-[#f1f5f9] rounded-full overflow-hidden">
                               <div
                                 style={{ width: `${Math.min(cpPct, 100)}%` }}
-                                className="h-full bg-emerald-500 transition-all duration-550"
+                                className="h-full bg-green-600 transition-all duration-550"
                               />
                             </div>
                           </div>
 
                           <div>
-                            <div className="flex justify-between text-[9px] font-black uppercase text-[#64748b] mb-0.5">
+                            <div className="flex justify-between text-[10px] font-bold text-[#0f172a] mb-1.5 uppercase tracking-widest">
                               <span>Tingkat Effective Call (EC/CP)</span>
-                              <span className="text-rose-700 font-mono font-bold">{ecPct.toFixed(1)}%</span>
+                              <span>{ecPct.toFixed(1)}%</span>
                             </div>
-                            <div className="w-full h-2 bg-[#e2e8f0]/40 rounded-full overflow-hidden">
+                            <div className="w-full h-1.5 bg-[#f1f5f9] rounded-full overflow-hidden">
                               <div
                                 style={{ width: `${Math.min(ecPct, 100)}%` }}
-                                className="h-full bg-rose-500 transition-all duration-550"
+                                className="h-full bg-red-600 transition-all duration-550"
                               />
                             </div>
                           </div>
 
                           <div>
-                            <div className="flex justify-between text-[9px] font-black uppercase text-[#64748b] mb-0.5">
+                            <div className="flex justify-between text-[10px] font-bold text-[#0f172a] mb-1.5 uppercase tracking-widest">
                               <span>Pencapaian SKU Fokus ({skuSum}/{targetSku} Sku)</span>
-                              <span className="text-amber-700 font-mono font-bold">{skuPct.toFixed(1)}%</span>
+                              <span>{skuPct.toFixed(1)}%</span>
                             </div>
-                            <div className="w-full h-2 bg-[#e2e8f0]/40 rounded-full overflow-hidden">
+                            <div className="w-full h-1.5 bg-[#f1f5f9] rounded-full overflow-hidden">
                               <div
                                 style={{ width: `${Math.min(skuPct, 100)}%` }}
-                                className="h-full bg-amber-500 transition-all duration-550"
+                                className="h-full bg-orange-500 transition-all duration-550"
                               />
                             </div>
                           </div>
                         </div>
 
-                        <div className="border border-dashed border-[#e2e8f0] rounded-2xl p-3 bg-[#e2e8f0]/10 mb-4 flex justify-between gap-2 text-left">
+                        <div className="border-t-2 border-[#f1f5f9] pt-4 mb-5 flex justify-between gap-2 text-left">
                           <div>
-                            <span className="text-[8px] font-extrabold text-[#64748b] flex items-center gap-1 uppercase tracking-wide">
-                              <Boxes className="w-3 h-3 text-[#64748b]" />
+                            <span className="text-[10px] font-bold text-[#0f172a] uppercase tracking-wider block mb-1">
                               Fokus Produk
                             </span>
-                            <span className="text-[10px] font-black text-[#2563eb] block mt-0.5 leading-none">
+                            <span className="text-[11px] font-serif font-black text-[#0f172a] block tracking-wide">
                               CB-YPP, TJ-YPP-PU
                             </span>
                           </div>
-                          <div className="text-right border-l border-[#e2e8f0] pl-3 shrink-0">
-                            <span className="text-[8px] font-extrabold text-[#64748b] flex items-center justify-end gap-1 uppercase tracking-wide">
-                              <DollarSign className="w-3 h-3 text-amber-600" />
+                          <div className="text-right border-l-2 border-[#f1f5f9] pl-4 shrink-0">
+                            <span className="text-[10px] font-bold text-[#0f172a] uppercase tracking-wider block mb-1">
                               Biaya Operasional
                             </span>
-                            <span className="text-[10.5px] font-mono font-black text-amber-700 block mt-0.5 leading-none">
+                            <span className="text-[12px] font-serif font-black text-[#0f172a] block">
                               Rp {((typeof g.operationalCost === 'number' && !isNaN(g.operationalCost)) ? g.operationalCost : 0).toLocaleString("id-ID")}
                             </span>
                           </div>
                         </div>
 
-                        <div className="border-t border-dotted border-[#e2e8f0] pt-3 mt-1 flex items-center justify-between text-left">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-7 h-7 rounded-full bg-[#2563eb] text-white flex items-center justify-center font-serif text-[11px] font-extrabold italic">
+                        <div className="border-t-2 border-[#f1f5f9] pt-4 flex items-center justify-between text-left">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-[#0f172a] text-[#ffffff] flex items-center justify-center font-serif text-[13px] font-bold">
                               {initialChar}
                             </div>
                             <div>
-                              <span className="text-[8px] font-extrabold text-[#64748b] block uppercase tracking-wide leading-none">Total Tagihan Termasuk Transfer & Giro</span>
-                              <span className="text-[11.5px] font-mono font-black text-indigo-800 mt-0.5 block leading-none">
+                              <span className="text-[9px] font-bold text-[#64748b] block uppercase tracking-wider mb-0.5">Total Tagihan Termasuk Transfer & Giro</span>
+                              <span className="text-[13px] font-serif font-black text-[#0f172a] block leading-none">
                                 Rp {(g.billsReceived + (g.billsTransfer || 0) + (g.billsGiro || 0)).toLocaleString("id-ID")}
                               </span>
                             </div>
                           </div>
                           <div>
-                            <span className="bg-[#e2e8f0]/60 text-[#0f172a] text-[8.5px] font-black rounded-md px-1.5 py-0.5 font-mono">
+                            <span className="text-[#0f172a] text-[10px] font-black uppercase tracking-wider">
                               {cntDays} HARI
                             </span>
                           </div>
