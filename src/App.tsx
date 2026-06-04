@@ -3931,7 +3931,7 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
-                <FarmerDashboard reports={svReports} />
+                <FarmerDashboard reports={svReports} nooRecords={svNoo} />
                 <HunterDashboard nooRecords={svNoo} reports={svReports} />
               </div>
             </motion.div>
