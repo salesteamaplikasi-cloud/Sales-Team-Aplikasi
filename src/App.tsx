@@ -51,12 +51,16 @@ import {
   AlertCircle,
   Star,
   ThumbsUp,
-  ThumbsDown
+  ThumbsDown,
+  LayoutDashboard,
+  PieChart,
+  BarChart3
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 import { RewardModal } from "./components/RewardModal";
 import { Salesman, Product, KpiReport, ImportParsingResult, RewardMerchant, CatalogHadiah, SalesmanGoal, NooRecord } from "./types";
+import { KPIDashboard } from "./components/KPIDashboard";
 import * as XLSX from "xlsx";
 import {
   INITIAL_SALESMEN,
@@ -644,7 +648,7 @@ export default function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<"form" | "salesmen" | "products" | "reports" | "sheets" | "loyalty" | "kpisales" | "claims" | "customerData" | "supervisor">(() => {
+  const [activeTab, setActiveTab] = useState<"dashboard" | "form" | "salesmen" | "products" | "reports" | "sheets" | "loyalty" | "kpisales" | "claims" | "customerData" | "supervisor">(() => {
     try {
       const p = new URLSearchParams(window.location.search);
       if (p.get("mode") === "customer-loyalty" || p.get("view") === "loyalty") {
@@ -2733,6 +2737,20 @@ export default function App() {
 
         {/* Sidebar Navigation Items Vertical List */}
         <nav className="flex-1 p-3 space-y-1.5 mt-2">
+          {/* Item 0: Dashboard */}
+          <button
+            onClick={() => setActiveTab("dashboard")}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all ${
+              activeTab === "dashboard"
+                ? "bg-[#2563eb] text-[#ffffff] shadow-sm font-bold"
+                : "text-[#64748b] hover:text-[#0f172a] hover:bg-[#e2e8f0]/30"
+            }`}
+            title="Dashboard Utama"
+          >
+            <LayoutDashboard className="w-5 h-5 shrink-0" />
+            {!isSidebarCollapsed && <span className="truncate">Dashboard Trend</span>}
+          </button>
+
           {/* Item 1: Input KPI */}
           <button
             onClick={() => setActiveTab("form")}
@@ -2990,6 +3008,22 @@ export default function App() {
                 exit={{ height: 0, opacity: 0 }}
                 className="border-t border-[#e2e8f0]/60 bg-[#ffffff] px-4 py-3 flex flex-col gap-2 shadow-inner overflow-hidden"
               >
+                {/* 0. Dashboard Tab Button */}
+                <button
+                  onClick={() => {
+                    setActiveTab("dashboard");
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className={`w-full py-2.5 px-4 rounded-xl text-left text-xs font-black uppercase tracking-wider flex items-center gap-3 ${
+                    activeTab === "dashboard" ? "bg-[#2563eb] text-[#ffffff]" : "bg-[#e2e8f0]/20 text-[#64748b]"
+                  }`}
+                >
+                  <LayoutDashboard className="w-4 h-4" />
+                  Dashboard Trend
+                </button>
+
+                <div className="border-b border-[#e2e8f0]/60 mx-1"></div>
+
                 {/* 1. Input KPI Tab Button */}
                 <button
                   onClick={() => {
@@ -3221,6 +3255,11 @@ export default function App() {
         {/* CONTROLLER SECTION */}
         <AnimatePresence mode="wait">
           
+          {/* TAB 0: KPI DASHBOARD (NEW) */}
+          {activeTab === "dashboard" && (
+            <KPIDashboard key="dashboard-tab" reports={targetDatasetForKpi} />
+          )}
+
           {/* TAB 1: FORM INPUT KPI (MIRRORS SCREENSHOT EXACTLY) */}
           {activeTab === "form" && (
             <motion.div
@@ -6231,7 +6270,7 @@ function createCustomerProfilingForm() {
                     const targetSku = Math.round(ecSum * 15);
                     const skuPct = targetSku > 0 ? (skuSum / targetSku) * 100 : 0;
 
-                    const isLayak = cpPct >= 80 && ecPct >= 40 && skuPct >= 100;
+                    const isLayak = cpPct >= 80 && ecPct >= 50;
 
                     const smMatch = salesmen.find(s => s.name.toUpperCase().trim() === g.salesmanName.toUpperCase().trim());
                     const salesmanArea = smMatch ? smMatch.area : (g.salesmanName.toUpperCase().trim() === "RINO" ? "CILONGOK" : "DKR SEKTOR");
@@ -6279,9 +6318,9 @@ function createCustomerProfilingForm() {
                           <div className="flex flex-col">
                             <div className="flex items-center gap-3">
                               {isLayak ? (
-                                <ThumbsUp className="w-5 h-5 text-emerald-600 shrink-0" />
+                                <ThumbsUp className="w-5 h-5 text-emerald-600 shrink-0" fill="currentColor" />
                               ) : (
-                                <ThumbsDown className="w-5 h-5 text-rose-600 shrink-0" />
+                                <ThumbsDown className="w-5 h-5 text-rose-600 shrink-0" fill="currentColor" />
                               )}
                               <h4 className="text-2xl font-serif font-black text-[#0f172a] uppercase tracking-wide">
                                 {g.salesmanName}
