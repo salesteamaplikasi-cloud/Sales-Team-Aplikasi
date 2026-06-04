@@ -6625,7 +6625,7 @@ function createCustomerProfilingForm() {
                 const sTargetSku = Math.round(sEc * 15);
                 const sSkuPct = sTargetSku > 0 ? (sSku / sTargetSku) * 100 : 0;
 
-                const isLayak = sCpPct >= 80 && sEcPct >= 40;
+                const isLayak = sCpPct >= 80 && sEcPct >= 50;
 
                 // Tracking NOO
                 const sNooLogs = nooRecords.filter(

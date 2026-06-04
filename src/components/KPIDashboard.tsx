@@ -52,6 +52,8 @@ export const KPIDashboard: React.FC<KPIDashboardProps> = ({ reports }) => {
     const isEcLayak = ecPct >= 40;
     const isSkuLayak = skuPct >= 100;
     
+    const avgSkuPerSales = reports.length > 0 ? Math.round(skuSum / reports.length) : 0;
+    
     return {
       tcSum, cpSum, ecSum, skuSum,
       cpPct: cpPct.toFixed(1),
@@ -60,6 +62,7 @@ export const KPIDashboard: React.FC<KPIDashboardProps> = ({ reports }) => {
       isCpLayak,
       isEcLayak,
       isSkuLayak,
+      avgSkuPerSales,
       totalDays: chartData.length
     };
   }, [reports, chartData]);
@@ -86,16 +89,16 @@ export const KPIDashboard: React.FC<KPIDashboardProps> = ({ reports }) => {
             <span className="block text-[10px] font-bold text-emerald-800 uppercase tracking-widest mb-1">TOTAL HARI LAPOR</span>
             <span className="text-2xl font-serif font-black text-emerald-900">{latestStats.totalDays}</span>
           </div>
-          <div className={`rounded-2xl p-4 border ${latestStats.isSkuLayak ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
-            <span className={`block text-[10px] font-bold uppercase tracking-widest mb-1 ${latestStats.isSkuLayak ? 'text-emerald-800' : 'text-rose-800'}`}>
-              RATA-RATA PENCAPAIAN SKU
+          <div className="bg-[#f8fafc] rounded-2xl p-4 border border-[#e2e8f0]">
+            <span className="block text-[10px] font-bold text-[#64748b] uppercase tracking-widest mb-1">
+              RATA-RATA SKU / SALES
             </span>
             <div className="flex items-end gap-2">
-              <span className={`text-2xl font-serif font-black ${latestStats.isSkuLayak ? 'text-emerald-900' : 'text-rose-900'}`}>
-                {latestStats.skuPct}%
+              <span className="text-2xl font-serif font-black text-[#0f172a]">
+                {latestStats.avgSkuPerSales}
               </span>
-              <span className={`text-[10px] font-bold mb-1 ${latestStats.isSkuLayak ? 'text-emerald-700' : 'text-rose-700'}`}>
-                (Std: {'>='} 100%)
+              <span className="text-[10px] font-bold text-[#64748b] mb-1">
+                (Daily)
               </span>
             </div>
           </div>
@@ -142,7 +145,7 @@ export const KPIDashboard: React.FC<KPIDashboardProps> = ({ reports }) => {
           </div>
           
           <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={300}>
               <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis 
@@ -198,7 +201,7 @@ export const KPIDashboard: React.FC<KPIDashboardProps> = ({ reports }) => {
           </div>
           
           <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={300}>
               <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis 
