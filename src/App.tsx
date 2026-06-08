@@ -75,6 +75,7 @@ import { CustomerLoyaltyPortal } from "./components/CustomerLoyaltyPortal";
 import { CustomerSalesTable } from "./components/CustomerSalesTable";
 import { FarmerDashboard } from "./components/FarmerDashboard";
 import { HunterDashboard } from "./components/HunterDashboard";
+import { SupervisorStrategy } from "./components/SupervisorStrategy";
 
 const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
   try {
@@ -191,7 +192,7 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
     // AKSI 4: Sinkronisasi Database Salesman
     if (data.action === "syncSalesmen") {
       var sheet = getOrCreateGlobalSheet(ss, "Daftar Salesman", [
-        "ID Salesman", "Nama Salesman", "Area Wilayah", "No. HP / Telepon"
+        "ID Salesman", "Nama Salesman", "Area Wilayah", "No. HP / Telepon", "Bisa NOO", "Supervisor"
       ], "#0f172a");
       
       var salesmen = data.salesmen;
@@ -202,11 +203,11 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
       for (var i = 0; i < salesmen.length; i++) {
         var s = salesmen[i];
         sheet.appendRow([
-          s.id, s.name, s.area, s.phone || "-"
+          s.id, s.name, s.area, s.phone || "-", s.canDoNoo ? "YA" : "TIDAK", s.isSupervisor ? "YA" : "TIDAK"
         ]);
       }
       
-      autoResizeColumns(sheet, 4);
+      autoResizeColumns(sheet, 6);
       
       return ContentService.createTextOutput(JSON.stringify({ 
         success: true, 
@@ -490,8 +491,7 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
     if (data.action === "syncNoo") {
       var sheetNoo = getOrCreateGlobalSheet(ss, "Log NOO Salesman", [
         "ID Log", "Tanggal Log", "Nama Salesman", "ID Salesman", 
-        "Warung / Toko Kelontong", "Store / Toko Modern", 
-        "Kios Atap", "Grosir / Wholesaler", "Total Outlet Baru"
+        "GT", "MT", "Total Outlet Baru"
       ], "#C01C42");
       
       var nooLogs = data.nooLogs || [];
@@ -502,26 +502,22 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
       
       for (var i = 0; i < nooLogs.length; i++) {
         var n = nooLogs[i];
-        var warungVal = Number(n.warung || 0);
-        var storeVal = Number(n.store || 0);
-        var kioskVal = Number(n.kiosk || 0);
-        var wholesalerVal = Number(n.wholesaler || 0);
-        var totalHarian = warungVal + storeVal + kioskVal + wholesalerVal;
+        var gtVal = Number(n.gt || 0);
+        var mtVal = Number(n.mt || 0);
+        var totalHarian = gtVal + mtVal;
         
         sheetNoo.appendRow([
           n.id,
           n.date || "",
           n.salesmanName || "",
           n.salesmanId || "",
-          warungVal,
-          storeVal,
-          kioskVal,
-          wholesalerVal,
+          gtVal,
+          mtVal,
           totalHarian
         ]);
       }
       
-      autoResizeColumns(sheetNoo, 9);
+      autoResizeColumns(sheetNoo, 7);
       
       return ContentService.createTextOutput(JSON.stringify({ 
         success: true, 
@@ -694,50 +690,40 @@ export default function App() {
         salesmanId: "s-7",
         salesmanName: "Aris",
         date: "2026-05-25",
-        warung: 3,
-        store: 1,
-        kiosk: 2,
-        wholesaler: 0
+        gt: 5,
+        mt: 1
       },
       {
         id: "noo-aris-2",
         salesmanId: "s-7",
         salesmanName: "Aris",
         date: "2026-05-26",
-        warung: 2,
-        store: 2,
-        kiosk: 1,
-        wholesaler: 1
+        gt: 3,
+        mt: 2
       },
       {
         id: "noo-imam-1",
         salesmanId: "s-8",
         salesmanName: "Imam",
         date: "2026-05-25",
-        warung: 1,
-        store: 1,
-        kiosk: 3,
-        wholesaler: 0
+        gt: 4,
+        mt: 1
       },
       {
         id: "noo-imam-2",
         salesmanId: "s-8",
         salesmanName: "Imam",
         date: "2026-05-26",
-        warung: 4,
-        store: 0,
-        kiosk: 0,
-        wholesaler: 1
+        gt: 4,
+        mt: 1
       }
     ];
   });
 
   // Local input states for daily NOO logging form
   const [newNooDate, setNewNooDate] = useState<string>(new Date().toISOString().substring(0, 10));
-  const [newNooWarung, setNewNooWarung] = useState<number>(0);
-  const [newNooStore, setNewNooStore] = useState<number>(0);
-  const [newNooKiosk, setNewNooKiosk] = useState<number>(0);
-  const [newNooWholesaler, setNewNooWholesaler] = useState<number>(0);
+  const [newNooGt, setNewNooGt] = useState<number>(0);
+  const [newNooMt, setNewNooMt] = useState<number>(0);
 
   // Synchronize NOO with local storage
   useEffect(() => {
@@ -1078,11 +1064,13 @@ export default function App() {
   const salesmanDropdownRef = useRef<HTMLDivElement>(null);
 
   // --- DATABASE EDIT MODALS ---
-  const [salesmanModal, setSalesmanModal] = useState<{ isOpen: boolean; id?: string; name: string; area: string; phone: string }>({
+  const [salesmanModal, setSalesmanModal] = useState<{ isOpen: boolean; id?: string; name: string; area: string; phone: string; canDoNoo?: boolean; isSupervisor?: boolean }>({
     isOpen: false,
     name: "",
     area: "",
-    phone: ""
+    phone: "",
+    canDoNoo: false,
+    isSupervisor: false
   });
 
   const [productModal, setProductModal] = useState<{ isOpen: boolean; id?: string; name: string; category: string; skuCode: string }>({
@@ -1289,16 +1277,14 @@ export default function App() {
     const isArisOrImam = slNameLower === "aris" || slNameLower === "imam";
     let savedNooRecord: NooRecord | null = null;
 
-    if (isArisOrImam && (newNooWarung > 0 || newNooStore > 0 || newNooKiosk > 0 || newNooWholesaler > 0)) {
+    if (isArisOrImam && (newNooGt > 0 || newNooMt > 0)) {
       savedNooRecord = {
         id: "noo-" + Date.now(),
         salesmanId: selectedSalesmanId,
         salesmanName: matchedSales.name,
         date: reportDate,
-        warung: newNooWarung,
-        store: newNooStore,
-        kiosk: newNooKiosk,
-        wholesaler: newNooWholesaler
+        gt: newNooGt,
+        mt: newNooMt
       };
       
       const updatedNoo = [savedNooRecord, ...nooRecords];
@@ -1349,10 +1335,8 @@ export default function App() {
     setNotes("");
     
     // Reset NOO fields
-    setNewNooWarung(0);
-    setNewNooStore(0);
-    setNewNooKiosk(0);
-    setNewNooWholesaler(0);
+    setNewNooGt(0);
+    setNewNooMt(0);
 
     setIsSubmittingReport(false);
   };
@@ -1827,10 +1811,8 @@ export default function App() {
             date: String(item["Tanggal Log"] || item.date || ""),
             salesmanName: String(item["Nama Salesman"] || item.salesmanName || ""),
             salesmanId: String(item["ID Salesman"] || item.salesmanId || ""),
-            warung: Number(item["Warung / Toko Kelontong"] || item.warung || 0),
-            store: Number(item["Store / Toko Modern"] || item.store || 0),
-            kiosk: Number(item["Kios Atap"] || item.kiosk || 0),
-            wholesaler: Number(item["Grosir / Wholesaler"] || item.wholesaler || 0)
+            gt: Number(item["GT"] || item.gt || item["Warung / Toko Kelontong"] || 0),
+            mt: Number(item["MT"] || item.mt || item["Store / Toko Modern"] || 0)
           };
         }).filter((n: any) => n.salesmanName && n.salesmanName !== "Nama Salesman");
 
@@ -2045,7 +2027,9 @@ export default function App() {
       isOpen: true,
       name: "",
       area: "",
-      phone: ""
+      phone: "",
+      canDoNoo: false,
+      isSupervisor: false
     });
   };
 
@@ -2055,7 +2039,9 @@ export default function App() {
       id: s.id,
       name: s.name,
       area: s.area || "",
-      phone: s.phone || ""
+      phone: s.phone || "",
+      canDoNoo: s.canDoNoo || false,
+      isSupervisor: s.isSupervisor || false
     });
   };
 
@@ -2074,7 +2060,9 @@ export default function App() {
             ...s,
             name: salesmanModal.name.toUpperCase(),
             area: salesmanModal.area,
-            phone: salesmanModal.phone
+            phone: salesmanModal.phone,
+            canDoNoo: salesmanModal.canDoNoo,
+            isSupervisor: salesmanModal.isSupervisor
           };
         }
         return s;
@@ -2090,6 +2078,8 @@ export default function App() {
         area: salesmanModal.area,
         phone: salesmanModal.phone,
         isActive: true,
+        canDoNoo: salesmanModal.canDoNoo,
+        isSupervisor: salesmanModal.isSupervisor,
         createdAt: new Date().toISOString()
       };
       const updated = [...salesmen, newS];
@@ -2546,7 +2536,7 @@ export default function App() {
           }
           
           // Check if it's NOO sheet
-          if (firstRow["Warung / Toko Kelontong"] !== undefined) {
+          if (firstRow["GT"] !== undefined || firstRow["Warung / Toko Kelontong"] !== undefined) {
             jsonData.forEach((row: any) => {
               if (!row["Tanggal Log"]) return;
               importedNoo.push({
@@ -2554,10 +2544,8 @@ export default function App() {
                 salesmanId: salesmen.find(s => s.name.toLowerCase() === (row["Nama Salesman"] || "").toLowerCase())?.id || row["ID Salesman"] || "unknown",
                 salesmanName: row["Nama Salesman"] || "-",
                 date: row["Tanggal Log"] || "-",
-                warung: Number(row["Warung / Toko Kelontong"] || 0),
-                store: Number(row["Store / Toko Modern"] || 0),
-                kiosk: Number(row["Kios Atap"] || 0),
-                wholesaler: Number(row["Grosir / Wholesaler"] || 0)
+                gt: Number(row["GT"] || row["Warung / Toko Kelontong"] || 0),
+                mt: Number(row["MT"] || row["Store / Toko Modern"] || 0)
               });
             });
           }
@@ -2736,7 +2724,7 @@ export default function App() {
         )}
 
         {/* Sidebar Navigation Items Vertical List */}
-        <nav className="flex-1 p-3 space-y-1.5 mt-2">
+        <nav className="flex-1 overflow-y-auto p-3 space-y-1.5 mt-2 custom-scrollbar">
           {/* Item 0: Dashboard */}
           <button
             onClick={() => setActiveTab("dashboard")}
@@ -3645,63 +3633,33 @@ export default function App() {
                         </span>
                       </div>
                       
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        {/* WARUNG */}
+                      <div className="grid grid-cols-2 md:grid-cols-2 gap-3">
+                        {/* GT */}
                         <div className="bg-white p-3 rounded-xl border border-rose-200/50">
                           <label className="block text-[10px] font-bold text-rose-900 uppercase tracking-wider mb-1.5 text-center">
-                            Warung NOO
+                            GT
                           </label>
                           <input
                             type="number"
                             min="0"
                             onFocus={(e) => e.target.value === "0" && e.target.select()}
-                            value={newNooWarung}
-                            onChange={(e) => setNewNooWarung(parseInt(e.target.value, 10) || 0)}
+                            value={newNooGt}
+                            onChange={(e) => setNewNooGt(parseInt(e.target.value, 10) || 0)}
                             className="w-full text-center rounded-lg py-2 text-base font-mono font-black text-rose-900 bg-rose-50/20 border border-rose-200 focus:outline-[#e2e8f0] focus:ring-1 focus:ring-rose-400 focus:bg-white"
                           />
                         </div>
 
-                        {/* TOKO */}
+                        {/* MT */}
                         <div className="bg-white p-3 rounded-xl border border-rose-200/50">
                           <label className="block text-[10px] font-bold text-rose-900 uppercase tracking-wider mb-1.5 text-center">
-                            Toko NOO
+                            MT
                           </label>
                           <input
                             type="number"
                             min="0"
                             onFocus={(e) => e.target.value === "0" && e.target.select()}
-                            value={newNooStore}
-                            onChange={(e) => setNewNooStore(parseInt(e.target.value, 10) || 0)}
-                            className="w-full text-center rounded-lg py-2 text-base font-mono font-black text-rose-900 bg-rose-50/20 border border-rose-200 focus:outline-[#e2e8f0] focus:ring-1 focus:ring-rose-400 focus:bg-white"
-                          />
-                        </div>
-
-                        {/* KIOS */}
-                        <div className="bg-white p-3 rounded-xl border border-rose-200/50">
-                          <label className="block text-[10px] font-bold text-rose-900 uppercase tracking-wider mb-1.5 text-center">
-                            Kios NOO
-                          </label>
-                          <input
-                            type="number"
-                            min="0"
-                            onFocus={(e) => e.target.value === "0" && e.target.select()}
-                            value={newNooKiosk}
-                            onChange={(e) => setNewNooKiosk(parseInt(e.target.value, 10) || 0)}
-                            className="w-full text-center rounded-lg py-2 text-base font-mono font-black text-rose-900 bg-rose-50/20 border border-rose-200 focus:outline-[#e2e8f0] focus:ring-1 focus:ring-rose-400 focus:bg-white"
-                          />
-                        </div>
-
-                        {/* GROSIR */}
-                        <div className="bg-white p-3 rounded-xl border border-rose-200/50">
-                          <label className="block text-[10px] font-bold text-rose-900 uppercase tracking-wider mb-1.5 text-center">
-                            Grosir NOO
-                          </label>
-                          <input
-                            type="number"
-                            min="0"
-                            onFocus={(e) => e.target.value === "0" && e.target.select()}
-                            value={newNooWholesaler}
-                            onChange={(e) => setNewNooWholesaler(parseInt(e.target.value, 10) || 0)}
+                            value={newNooMt}
+                            onChange={(e) => setNewNooMt(parseInt(e.target.value, 10) || 0)}
                             className="w-full text-center rounded-lg py-2 text-base font-mono font-black text-rose-900 bg-rose-50/20 border border-rose-200 focus:outline-[#e2e8f0] focus:ring-1 focus:ring-rose-400 focus:bg-white"
                           />
                         </div>
@@ -3886,7 +3844,7 @@ export default function App() {
                   Supervisor Dashboard
                 </h2>
                 <p className="text-sm text-[#64748b]">
-                  Pantau pergerakan role khusus Aris (Farmer) dan Imam (Hunter).
+                  Pantau pergerakan performa lapangan dan kontribusi akuisisi (NOO) berdasarkan peran salesman.
                 </p>
 
                 <div className="mt-4 max-w-xs">
@@ -3930,9 +3888,10 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
-                <FarmerDashboard reports={svReports} nooRecords={svNoo} />
-                <HunterDashboard nooRecords={svNoo} reports={svReports} />
+              <div className="flex flex-col gap-6 items-stretch">
+                <SupervisorStrategy />
+                <HunterDashboard nooRecords={svNoo} reports={svReports} hunters={salesmen.filter(s => s.canDoNoo)} />
+                <FarmerDashboard reports={svReports} nooRecords={svNoo} farmers={salesmen.filter(s => !s.canDoNoo && !s.isSupervisor)} hunters={salesmen.filter(s => s.canDoNoo)} />
               </div>
             </motion.div>
             );
@@ -4017,6 +3976,7 @@ export default function App() {
                         <th className="px-6 py-4">Nama Salesman</th>
                         <th className="px-6 py-4">Wilayah / Area</th>
                         <th className="px-6 py-4">Nomor HP</th>
+                        <th className="px-6 py-4">Peran</th>
                         <th className="px-6 py-4 text-center">Tindakan</th>
                       </tr>
                     </thead>
@@ -4041,6 +4001,23 @@ export default function App() {
                           </td>
                           <td className="px-6 py-4 font-mono text-xs text-[#64748b]">
                             {s.phone || "Tidak ada data"}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col gap-1">
+                              {s.isSupervisor && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-[#2563eb] text-white self-start">
+                                  Supervisor
+                                </span>
+                              )}
+                              {s.canDoNoo && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500 text-white self-start">
+                                  NOO
+                                </span>
+                              )}
+                              {!s.isSupervisor && !s.canDoNoo && (
+                                <span className="text-[10px] text-[#64748b]">Reguler</span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center justify-center gap-3">
@@ -6631,11 +6608,9 @@ function createCustomerProfilingForm() {
                 const sNooLogs = nooRecords.filter(
                   n => n.salesmanName.toLowerCase().trim() === activeSalesmanName.toLowerCase()
                 );
-                const totalWarung = sNooLogs.reduce((sum, n) => sum + n.warung, 0);
-                const totalStore = sNooLogs.reduce((sum, n) => sum + n.store, 0);
-                const totalKiosk = sNooLogs.reduce((sum, n) => sum + n.kiosk, 0);
-                const totalWholesaler = sNooLogs.reduce((sum, n) => sum + n.wholesaler, 0);
-                const totalNooCount = totalWarung + totalStore + totalKiosk + totalWholesaler;
+                const totalGt = sNooLogs.reduce((sum, n) => sum + (n.gt || 0), 0);
+                const totalMt = sNooLogs.reduce((sum, n) => sum + (n.mt || 0), 0);
+                const totalNooCount = totalGt + totalMt;
 
                 const handleAddNoo = (e: React.FormEvent) => {
                   e.preventDefault();
@@ -6644,19 +6619,15 @@ function createCustomerProfilingForm() {
                     salesmanId: foundSalesman.id,
                     salesmanName: foundSalesman.name,
                     date: newNooDate,
-                    warung: newNooWarung,
-                    store: newNooStore,
-                    kiosk: newNooKiosk,
-                    wholesaler: newNooWholesaler
+                    gt: newNooGt,
+                    mt: newNooMt
                   };
                   const updatedRecords = [newRecord, ...nooRecords];
                   setNooRecords(updatedRecords);
                   showToast(`Berhasil menyimpan log NOO harian untuk ${foundSalesman.name}!`, "success");
                   // reset input counts
-                  setNewNooWarung(0);
-                  setNewNooStore(0);
-                  setNewNooKiosk(0);
-                  setNewNooWholesaler(0);
+                  setNewNooGt(0);
+                  setNewNooMt(0);
 
                   if (sheetsScriptUrl) {
                     handleSyncNooToSheets(updatedRecords);
@@ -6852,19 +6823,19 @@ function createCustomerProfilingForm() {
                           {/* Cumulative NOO Grid */}
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                             <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-3 text-center">
-                              <span className="block text-[9px] font-bold text-amber-800 uppercase">Warung / Toko Kelontong</span>
+                              <span className="block text-[9px] font-bold text-amber-800 uppercase">Warung GT</span>
                               <span className="text-2xl font-black font-mono text-amber-900 block mt-1">{totalWarung}</span>
                             </div>
                             <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-3 text-center">
-                              <span className="block text-[9px] font-bold text-rose-800 uppercase">Store / Toko Modern</span>
+                              <span className="block text-[9px] font-bold text-rose-800 uppercase">Toko MT</span>
                               <span className="text-2xl font-black font-mono text-rose-900 block mt-1">{totalStore}</span>
                             </div>
                             <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-3 text-center">
-                              <span className="block text-[9px] font-bold text-indigo-800 uppercase">Kios / Outlet Atap</span>
+                              <span className="block text-[9px] font-bold text-indigo-800 uppercase">Kios GT</span>
                               <span className="text-2xl font-black font-mono text-[#312E81] block mt-1">{totalKiosk}</span>
                             </div>
                             <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-3 text-center">
-                              <span className="block text-[9px] font-bold text-emerald-800 uppercase">Grosir / Wholesaler</span>
+                              <span className="block text-[9px] font-bold text-emerald-800 uppercase">Grosir MT</span>
                               <span className="text-2xl font-black font-mono text-[#064E3B] block mt-1">{totalWholesaler}</span>
                             </div>
                           </div>
@@ -6882,24 +6853,20 @@ function createCustomerProfilingForm() {
                                   <thead>
                                     <tr className="bg-[#e2e8f0]/20 border-b border-[#e2e8f0] text-[9px] font-black uppercase text-[#64748b]">
                                       <th className="p-2.5">Tanggal</th>
-                                      <th className="p-2.5 text-center">Warung</th>
-                                      <th className="p-2.5 text-center">Toko/Store</th>
-                                      <th className="p-2.5 text-center">Kios</th>
-                                      <th className="p-2.5 text-center">Grosir</th>
+                                      <th className="p-2.5 text-center">GT</th>
+                                      <th className="p-2.5 text-center">MT</th>
                                       <th className="p-2.5 text-center">Total harian</th>
                                       <th className="p-2.5 text-center">Aksi</th>
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-[#e2e8f0]/30">
                                     {sNooLogs.map(log => {
-                                      const rowSum = log.warung + log.store + log.kiosk + log.wholesaler;
+                                      const rowSum = (log.gt || 0) + (log.mt || 0);
                                       return (
                                         <tr key={log.id} className="hover:bg-[#e2e8f0]/10 transition-colors bg-white text-[#0f172a]">
                                           <td className="p-2.5 font-bold font-mono">{log.date}</td>
-                                          <td className="p-2.5 text-center font-semibold text-amber-700">{log.warung}</td>
-                                          <td className="p-2.5 text-center font-semibold text-rose-700">{log.store}</td>
-                                          <td className="p-2.5 text-center font-semibold text-indigo-700">{log.kiosk}</td>
-                                          <td className="p-2.5 text-center font-semibold text-emerald-700">{log.wholesaler}</td>
+                                          <td className="p-2.5 text-center font-semibold text-amber-700">{log.gt}</td>
+                                          <td className="p-2.5 text-center font-semibold text-rose-700">{log.mt}</td>
                                           <td className="p-2.5 text-center font-black bg-rose-50 text-rose-900">{rowSum}</td>
                                           <td className="p-2.5 text-center">
                                             <button
@@ -6948,26 +6915,26 @@ function createCustomerProfilingForm() {
                               />
                             </div>
 
-                            {/* WARUNG */}
+                            {/* GT */}
                             <div className="bg-white border border-[#e2e8f0] rounded-2xl p-3 flex items-center justify-between">
                               <div>
-                                <span className="text-[10px] font-bold text-amber-800 block uppercase leading-none font-sans">Warung Kelontong</span>
-                                <span className="text-[8px] text-[#64748b] uppercase mt-0.5 block">Warung kecil & depot</span>
+                                <span className="text-[10px] font-bold text-amber-800 block uppercase leading-none font-sans">GT</span>
+                                <span className="text-[8px] text-[#64748b] uppercase mt-0.5 block">General Trade (Warung, Kios, Kelontong)</span>
                               </div>
                               <div className="flex items-center gap-1.5">
                                 <button
                                   type="button"
-                                  onClick={() => setNewNooWarung(p => Math.max(0, p - 1))}
+                                  onClick={() => setNewNooGt(p => Math.max(0, p - 1))}
                                   className="w-8 h-8 rounded-xl bg-[#e2e8f0]/40 hover:bg-[#e2e8f0]/70 text-[#0f172a] flex items-center justify-center font-bold text-lg select-none cursor-pointer"
                                 >
                                   -
                                 </button>
                                 <span className="w-8 text-center font-bold font-mono text-sm">
-                                  {newNooWarung}
+                                  {newNooGt}
                                 </span>
                                 <button
                                   type="button"
-                                  onClick={() => setNewNooWarung(p => p + 1)}
+                                  onClick={() => setNewNooGt(p => p + 1)}
                                   className="w-8 h-8 rounded-xl bg-amber-500 text-white hover:bg-amber-600 flex items-center justify-center font-bold text-lg select-none cursor-pointer"
                                 >
                                   +
@@ -6975,81 +6942,27 @@ function createCustomerProfilingForm() {
                               </div>
                             </div>
 
-                            {/* TOKO MODERN */}
+                            {/* MT */}
                             <div className="bg-white border border-[#e2e8f0] rounded-2xl p-3 flex items-center justify-between">
                               <div>
-                                <span className="text-[10px] font-bold text-rose-800 block uppercase leading-none font-sans">Toko / Store</span>
-                                <span className="text-[8px] text-[#64748b] uppercase mt-0.5 block">Toko sedang, minimarket</span>
+                                <span className="text-[10px] font-bold text-rose-800 block uppercase leading-none font-sans">MT</span>
+                                <span className="text-[8px] text-[#64748b] uppercase mt-0.5 block">Modern Trade (Store, Minimarket, Grosir besar)</span>
                               </div>
                               <div className="flex items-center gap-1.5">
                                 <button
                                   type="button"
-                                  onClick={() => setNewNooStore(p => Math.max(0, p - 1))}
+                                  onClick={() => setNewNooMt(p => Math.max(0, p - 1))}
                                   className="w-8 h-8 rounded-xl bg-[#e2e8f0]/40 hover:bg-[#e2e8f0]/70 text-[#0f172a] flex items-center justify-center font-bold text-lg select-none cursor-pointer"
                                 >
                                   -
                                 </button>
                                 <span className="w-8 text-center font-bold font-mono text-sm">
-                                  {newNooStore}
+                                  {newNooMt}
                                 </span>
                                 <button
                                   type="button"
-                                  onClick={() => setNewNooStore(p => p + 1)}
+                                  onClick={() => setNewNooMt(p => p + 1)}
                                   className="w-8 h-8 rounded-xl bg-rose-600 text-white hover:bg-rose-700 flex items-center justify-center font-bold text-lg select-none cursor-pointer"
-                                >
-                                  +
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* KIOS */}
-                            <div className="bg-white border border-[#e2e8f0] rounded-2xl p-3 flex items-center justify-between">
-                              <div>
-                                <span className="text-[10px] font-bold text-indigo-800 block uppercase leading-none font-sans">Kios Atap</span>
-                                <span className="text-[8px] text-[#64748b] uppercase mt-0.5 block">Kios pasar & tenda</span>
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => setNewNooKiosk(p => Math.max(0, p - 1))}
-                                  className="w-8 h-8 rounded-xl bg-[#e2e8f0]/40 hover:bg-[#e2e8f0]/70 text-[#0f172a] flex items-center justify-center font-bold text-lg select-none cursor-pointer"
-                                >
-                                  -
-                                </button>
-                                <span className="w-8 text-center font-bold font-mono text-sm">
-                                  {newNooKiosk}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => setNewNooKiosk(p => p + 1)}
-                                  className="w-8 h-8 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 flex items-center justify-center font-bold text-lg select-none cursor-pointer"
-                                >
-                                  +
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* GROSIR */}
-                            <div className="bg-white border border-[#e2e8f0] rounded-2xl p-3 flex items-center justify-between">
-                              <div>
-                                <span className="text-[10px] font-bold text-emerald-800 block uppercase leading-none font-sans">Wholesaler / Grosir</span>
-                                <span className="text-[8px] text-[#64748b] uppercase mt-0.5 block">Toko agen besar</span>
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => setNewNooWholesaler(p => Math.max(0, p - 1))}
-                                  className="w-8 h-8 rounded-xl bg-[#e2e8f0]/40 hover:bg-[#e2e8f0]/70 text-[#0f172a] flex items-center justify-center font-bold text-lg select-none cursor-pointer"
-                                >
-                                  -
-                                </button>
-                                <span className="w-8 text-center font-bold font-mono text-sm">
-                                  {newNooWholesaler}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => setNewNooWholesaler(p => p + 1)}
-                                  className="w-8 h-8 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 flex items-center justify-center font-bold text-lg select-none cursor-pointer"
                                 >
                                   +
                                 </button>
@@ -7381,6 +7294,34 @@ function createCustomerProfilingForm() {
                     placeholder="Contoh: 081234567xxx"
                     className="w-full bg-[#ffffff] border border-[#e2e8f0] rounded-xl px-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#2563eb] text-[#0f172a] font-mono"
                   />
+                </div>
+
+                <div className="flex flex-col gap-3 py-2">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={salesmanModal.canDoNoo}
+                      onChange={(e) => setSalesmanModal({ ...salesmanModal, canDoNoo: e.target.checked })}
+                      className="w-5 h-5 rounded border-[#e2e8f0] text-[#2563eb] focus:ring-[#2563eb]"
+                    />
+                    <div>
+                      <span className="block text-sm font-bold text-[#0f172a]">Bertugas Melakukan NOO</span>
+                      <span className="block text-[10px] text-[#64748b]">Salesman dapat mencatat jumlah outlet baru NOO Harian.</span>
+                    </div>
+                  </label>
+                  
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={salesmanModal.isSupervisor}
+                      onChange={(e) => setSalesmanModal({ ...salesmanModal, isSupervisor: e.target.checked })}
+                      className="w-5 h-5 rounded border-[#e2e8f0] text-[#2563eb] focus:ring-[#2563eb]"
+                    />
+                    <div>
+                      <span className="block text-sm font-bold text-[#0f172a]">Supervisor Sales</span>
+                      <span className="block text-[10px] text-[#64748b]">Jabatan sebagai supervisor untuk melihat insight tim.</span>
+                    </div>
+                  </label>
                 </div>
 
                 <div className="flex gap-2.5 pt-2">

@@ -31,6 +31,8 @@ export interface Salesman {
   isActive: boolean;
   createdAt: string;
   role?: SalesmanRole;
+  canDoNoo?: boolean;
+  isSupervisor?: boolean;
 }
 
 export interface Product {
@@ -97,8 +99,6 @@ export interface NooRecord {
   salesmanId: string;
   salesmanName: string;
   date: string; // YYYY-MM-DD
-  warung: number;
-  store: number;
-  kiosk: number;
-  wholesaler: number;
+  gt: number;
+  mt: number;
 }
