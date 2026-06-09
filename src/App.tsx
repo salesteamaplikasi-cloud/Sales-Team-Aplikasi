@@ -75,6 +75,7 @@ import { CustomerLoyaltyPortal } from "./components/CustomerLoyaltyPortal";
 import { CustomerSalesTable } from "./components/CustomerSalesTable";
 import { FarmerDashboard } from "./components/FarmerDashboard";
 import { HunterDashboard } from "./components/HunterDashboard";
+import { SupervisorStrategy } from "./components/SupervisorStrategy";
 
 const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
   try {
@@ -191,7 +192,7 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
     // AKSI 4: Sinkronisasi Database Salesman
     if (data.action === "syncSalesmen") {
       var sheet = getOrCreateGlobalSheet(ss, "Daftar Salesman", [
-        "ID Salesman", "Nama Salesman", "Area Wilayah", "No. HP / Telepon"
+        "ID Salesman", "Nama Salesman", "Area Wilayah", "No. HP / Telepon", "Bisa NOO", "Supervisor"
       ], "#0f172a");
       
       var salesmen = data.salesmen;
@@ -202,11 +203,11 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
       for (var i = 0; i < salesmen.length; i++) {
         var s = salesmen[i];
         sheet.appendRow([
-          s.id, s.name, s.area, s.phone || "-"
+          s.id, s.name, s.area, s.phone || "-", s.canDoNoo ? "YA" : "TIDAK", s.isSupervisor ? "YA" : "TIDAK"
         ]);
       }
       
-      autoResizeColumns(sheet, 4);
+      autoResizeColumns(sheet, 6);
       
       return ContentService.createTextOutput(JSON.stringify({ 
         success: true, 
@@ -2723,7 +2724,7 @@ export default function App() {
         )}
 
         {/* Sidebar Navigation Items Vertical List */}
-        <nav className="flex-1 p-3 space-y-1.5 mt-2">
+        <nav className="flex-1 overflow-y-auto p-3 space-y-1.5 mt-2 custom-scrollbar">
           {/* Item 0: Dashboard */}
           <button
             onClick={() => setActiveTab("dashboard")}
@@ -3820,8 +3821,8 @@ export default function App() {
           {/* TAB 8: SUPERVISOR PAGE */}
           {activeTab === "supervisor" && (() => {
             const svReports = supervisorDateFilter 
-               ? reports.filter(r => r.date === supervisorDateFilter) 
-               : reports;
+               ? targetDatasetForKpi.filter((r: any) => r.date === supervisorDateFilter) 
+               : targetDatasetForKpi;
             const svNoo = supervisorDateFilter
                ? nooRecords.filter(n => n.date === supervisorDateFilter)
                : nooRecords;
@@ -3870,7 +3871,7 @@ export default function App() {
                 </div>
 
                 {/* FILE IMPORT ACTION */}
-                <div className="mt-6 flex flex-wrap gap-4 relative z-10">
+                <div className="mt-6 flex flex-wrap gap-4 relative z-10 items-center">
                   <label className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold uppercase tracking-wider px-5 py-3 rounded-xl transition cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2">
                     <Upload className="w-4 h-4" />
                     Impor Data XLSX
@@ -3881,15 +3882,34 @@ export default function App() {
                       onChange={handleImportExcelSupervisor}
                     />
                   </label>
-                  <p className="text-[10px] text-[#64748b] max-w-sm">
-                    Gunakan tombol ini untuk mengimpor data laporan hasil ekspor (format .xlsx) dari Google Spreadsheets.
+                  
+                  <button
+                    onClick={async () => {
+                      if (!sheetsScriptUrl) {
+                        showToast("Tolong hubungkan dan masukkan URL Google Sheets Web App terlebih dahulu di tab 'Google Sheets'!", "error");
+                        return;
+                      }
+                      await handleFetchReportsFromSheets(true);
+                      await handleFetchNooFromSheets(true);
+                      showToast("Data terbaru tim lapangan termasuk performa NOO telah berhasil disinkronkan!", "success");
+                    }}
+                    disabled={isFetchingReports || isFetchingNoo}
+                    className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-bold uppercase tracking-wider px-5 py-3 rounded-xl transition cursor-pointer shadow-sm hover:shadow-md flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isFetchingReports || isFetchingNoo ? "animate-spin" : ""}`} />
+                    Tarik Data Spreadsheet
+                  </button>
+                  
+                  <p className="text-[10px] text-[#64748b] max-w-sm mt-2 md:mt-0">
+                    Tarik seluruh histori KPI dan log NOO langsung dari Google Sheets.
                   </p>
                 </div>
               </div>
 
               <div className="flex flex-col gap-6 items-stretch">
-                <HunterDashboard nooRecords={svNoo} reports={svReports} hunters={salesmen.filter(s => s.canDoNoo)} />
-                <FarmerDashboard reports={svReports} nooRecords={svNoo} farmers={salesmen.filter(s => !s.canDoNoo && !s.isSupervisor)} hunters={salesmen.filter(s => s.canDoNoo)} />
+                <SupervisorStrategy />
+                <HunterDashboard nooRecords={svNoo} reports={svReports} hunters={salesmen.filter(s => s.canDoNoo).length > 0 ? salesmen.filter(s => s.canDoNoo) : salesmen.filter(s => s.name.toLowerCase() === 'imam')} />
+                <FarmerDashboard reports={svReports} nooRecords={svNoo} farmers={salesmen.filter(s => !s.canDoNoo && !s.isSupervisor).length > 0 ? salesmen.filter(s => !s.canDoNoo && !s.isSupervisor) : salesmen.filter(s => s.name.toLowerCase() === 'aris')} hunters={salesmen.filter(s => s.canDoNoo).length > 0 ? salesmen.filter(s => s.canDoNoo) : salesmen.filter(s => s.name.toLowerCase() === 'imam')} />
               </div>
             </motion.div>
             );
