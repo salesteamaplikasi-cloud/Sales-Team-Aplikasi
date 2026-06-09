@@ -75,7 +75,6 @@ import { CustomerLoyaltyPortal } from "./components/CustomerLoyaltyPortal";
 import { CustomerSalesTable } from "./components/CustomerSalesTable";
 import { FarmerDashboard } from "./components/FarmerDashboard";
 import { HunterDashboard } from "./components/HunterDashboard";
-import { SupervisorStrategy } from "./components/SupervisorStrategy";
 
 const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
   try {
@@ -192,7 +191,7 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
     // AKSI 4: Sinkronisasi Database Salesman
     if (data.action === "syncSalesmen") {
       var sheet = getOrCreateGlobalSheet(ss, "Daftar Salesman", [
-        "ID Salesman", "Nama Salesman", "Area Wilayah", "No. HP / Telepon", "Bisa NOO", "Supervisor"
+        "ID Salesman", "Nama Salesman", "Area Wilayah", "No. HP / Telepon"
       ], "#0f172a");
       
       var salesmen = data.salesmen;
@@ -203,11 +202,11 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
       for (var i = 0; i < salesmen.length; i++) {
         var s = salesmen[i];
         sheet.appendRow([
-          s.id, s.name, s.area, s.phone || "-", s.canDoNoo ? "YA" : "TIDAK", s.isSupervisor ? "YA" : "TIDAK"
+          s.id, s.name, s.area, s.phone || "-"
         ]);
       }
       
-      autoResizeColumns(sheet, 6);
+      autoResizeColumns(sheet, 4);
       
       return ContentService.createTextOutput(JSON.stringify({ 
         success: true, 
@@ -2724,7 +2723,7 @@ export default function App() {
         )}
 
         {/* Sidebar Navigation Items Vertical List */}
-        <nav className="flex-1 overflow-y-auto p-3 space-y-1.5 mt-2 custom-scrollbar">
+        <nav className="flex-1 p-3 space-y-1.5 mt-2">
           {/* Item 0: Dashboard */}
           <button
             onClick={() => setActiveTab("dashboard")}
@@ -3889,7 +3888,6 @@ export default function App() {
               </div>
 
               <div className="flex flex-col gap-6 items-stretch">
-                <SupervisorStrategy />
                 <HunterDashboard nooRecords={svNoo} reports={svReports} hunters={salesmen.filter(s => s.canDoNoo)} />
                 <FarmerDashboard reports={svReports} nooRecords={svNoo} farmers={salesmen.filter(s => !s.canDoNoo && !s.isSupervisor)} hunters={salesmen.filter(s => s.canDoNoo)} />
               </div>
