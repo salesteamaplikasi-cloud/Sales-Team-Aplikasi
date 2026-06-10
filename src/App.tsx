@@ -3678,11 +3678,11 @@ export default function App() {
                       <div className="relative">
                         <span className="absolute left-4 top-3.5 text-xs text-[#64748b] font-bold">Rp</span>
                         <input
-                          type="number"
-                          min="0"
-                          onFocus={(e) => e.target.value === "0" && e.target.select()}
-                          value={operationalCost}
-                          onChange={(e) => setOperationalCost(parseInt(e.target.value, 10) || 0)}
+                          type="text"
+                          inputMode="numeric"
+                          onFocus={(e) => e.target.select()}
+                          value={operationalCost === 0 ? "0" : operationalCost.toLocaleString("id-ID")}
+                          onChange={(e) => setOperationalCost(parseInt(e.target.value.replace(/[^0-9]/g, ""), 10) || 0)}
                           className="w-full bg-[#ffffff] border border-[#e2e8f0] rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#2563eb] focus:bg-white text-[#0f172a] font-semibold"
                           required
                         />
@@ -3709,11 +3709,11 @@ export default function App() {
                       <div className="relative">
                         <span className="absolute left-4 top-3.5 text-xs text-[#64748b] font-bold">Rp</span>
                         <input
-                          type="number"
-                          min="0"
-                          onFocus={(e) => e.target.value === "0" && e.target.select()}
-                          value={billsReceived}
-                          onChange={(e) => setBillsReceived(parseInt(e.target.value, 10) || 0)}
+                          type="text"
+                          inputMode="numeric"
+                          onFocus={(e) => e.target.select()}
+                          value={billsReceived === 0 ? "0" : billsReceived.toLocaleString("id-ID")}
+                          onChange={(e) => setBillsReceived(parseInt(e.target.value.replace(/[^0-9]/g, ""), 10) || 0)}
                           className="w-full bg-[#ffffff] border border-[#e2e8f0] rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#2563eb] focus:bg-white text-[#0f172a] font-bold"
                           required
                         />
@@ -3731,11 +3731,11 @@ export default function App() {
                       <div className="relative">
                         <span className="absolute left-4 top-3.5 text-xs text-[#64748b] font-bold">Rp</span>
                         <input
-                          type="number"
-                          min="0"
-                          onFocus={(e) => e.target.value === "0" && e.target.select()}
-                          value={billsTransfer}
-                          onChange={(e) => setBillsTransfer(parseInt(e.target.value, 10) || 0)}
+                          type="text"
+                          inputMode="numeric"
+                          onFocus={(e) => e.target.select()}
+                          value={billsTransfer === 0 ? "0" : billsTransfer.toLocaleString("id-ID")}
+                          onChange={(e) => setBillsTransfer(parseInt(e.target.value.replace(/[^0-9]/g, ""), 10) || 0)}
                           className="w-full bg-[#ffffff] border border-[#e2e8f0] rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#2563eb] focus:bg-white text-[#0f172a] font-bold"
                         />
                       </div>
@@ -3749,11 +3749,11 @@ export default function App() {
                       <div className="relative">
                         <span className="absolute left-4 top-3.5 text-xs text-[#64748b] font-bold">Rp</span>
                         <input
-                          type="number"
-                          min="0"
-                          onFocus={(e) => e.target.value === "0" && e.target.select()}
-                          value={billsGiro}
-                          onChange={(e) => setBillsGiro(parseInt(e.target.value, 10) || 0)}
+                          type="text"
+                          inputMode="numeric"
+                          onFocus={(e) => e.target.select()}
+                          value={billsGiro === 0 ? "0" : billsGiro.toLocaleString("id-ID")}
+                          onChange={(e) => setBillsGiro(parseInt(e.target.value.replace(/[^0-9]/g, ""), 10) || 0)}
                           className="w-full bg-[#ffffff] border border-[#e2e8f0] rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#2563eb] focus:bg-white text-[#0f172a] font-bold"
                         />
                       </div>
