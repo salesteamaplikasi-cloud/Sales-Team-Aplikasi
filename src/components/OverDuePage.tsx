@@ -4,6 +4,23 @@ import { Upload, FileText, Search, Download, Clock, MapPin, Phone, ShieldAlert, 
 import * as XLSX from 'xlsx';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts';
 
+const formatDateId = (dateStr: string) => {
+  if (!dateStr || dateStr === "-") return "-";
+  if (dateStr.includes("T") && dateStr.endsWith("Z")) {
+    try {
+      const date = new Date(dateStr);
+      const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des"];
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = months[date.getMonth()];
+      const year = date.getFullYear();
+      return `${day} ${month} ${year}`;
+    } catch {
+      return dateStr;
+    }
+  }
+  return dateStr;
+};
+
 export interface OverdueInvoice {
   tanggal: string;
   nomor: string;
@@ -595,11 +612,11 @@ export function OverDuePage({ sheetsScriptUrl }: { sheetsScriptUrl?: string }) {
                        <div className="mt-auto flex flex-col gap-2 pt-2 border-t border-[#e2e8f0]/60">
                           <div className="flex justify-between items-center text-[10px]">
                              <span className="text-[#64748b] font-bold uppercase tracking-wider">Tgl Faktur</span>
-                             <span className="text-[#0f172a] font-medium">{inv.tanggal || "-"}</span>
+                             <span className="text-[#0f172a] font-medium">{formatDateId(inv.tanggal)}</span>
                           </div>
                           <div className="flex justify-between items-center text-[10px]">
                              <span className="text-[#64748b] font-bold uppercase tracking-wider">Jatuh Tempo</span>
-                             <span className="text-[#0f172a] font-medium">{inv.jt || "-"}</span>
+                             <span className="text-[#0f172a] font-medium">{formatDateId(inv.jt)}</span>
                           </div>
                           <div className="flex justify-between items-center text-[10px]">
                              <span className="text-[#64748b] font-bold uppercase tracking-wider">Sales Factor</span>
