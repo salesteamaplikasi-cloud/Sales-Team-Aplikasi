@@ -129,7 +129,11 @@ export function OverDuePage({ sheetsScriptUrl }: { sheetsScriptUrl?: string }) {
         if (parsedInvoices.length === 0) {
           setErrorMsg('Berhasil membaca file TXT, namun tidak ada data faktur overdue yang ditemukan. Pastikan tabel di dalam file tersebut berisi data.');
         } else {
-          setInvoices(parsedInvoices);
+          setInvoices(prev => {
+            const existingIds = new Set(prev.map(i => i.nomor));
+            const newInvoices = parsedInvoices.filter(i => !existingIds.has(i.nomor));
+            return [...prev, ...newInvoices];
+          });
         }
       } catch (err) {
         console.error('Error importing:', err);
