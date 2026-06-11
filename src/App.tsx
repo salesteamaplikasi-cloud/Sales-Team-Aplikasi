@@ -76,6 +76,7 @@ import { CustomerSalesTable } from "./components/CustomerSalesTable";
 import { FarmerDashboard } from "./components/FarmerDashboard";
 import { HunterDashboard } from "./components/HunterDashboard";
 import { SupervisorStrategy } from "./components/SupervisorStrategy";
+import { OverDuePage } from "./components/OverDuePage";
 
 const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
   try {
@@ -644,7 +645,7 @@ export default function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<"dashboard" | "form" | "salesmen" | "products" | "reports" | "sheets" | "loyalty" | "kpisales" | "claims" | "customerData" | "supervisor">(() => {
+  const [activeTab, setActiveTab] = useState<"dashboard" | "form" | "salesmen" | "products" | "reports" | "sheets" | "loyalty" | "kpisales" | "claims" | "customerData" | "supervisor" | "overdue">(() => {
     try {
       const p = new URLSearchParams(window.location.search);
       if (p.get("mode") === "customer-loyalty" || p.get("view") === "loyalty") {
@@ -2837,6 +2838,22 @@ export default function App() {
             <Shield className="w-4 h-4 shrink-0 text-rose-600" />
             {!isSidebarCollapsed && <span className="truncate">Supervisor</span>}
           </button>
+          
+          <div className="border-b border-[#e2e8f0]/60 mx-2"></div>
+
+          {/* Item 9: Overdue Page */}
+          <button
+            onClick={() => setActiveTab("overdue")}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all ${
+              activeTab === "overdue"
+                ? "bg-rose-500 text-[#ffffff] shadow-sm font-bold"
+                : "text-[#64748b] hover:text-[#0f172a] hover:bg-[#e2e8f0]/30"
+            }`}
+            title="Faktur Overdue"
+          >
+            <Clock className="w-4 h-4 shrink-0" />
+            {!isSidebarCollapsed && <span className="truncate">Overdue Faktur</span>}
+          </button>
 
           <div className="border-b border-[#e2e8f0]/60 mx-2"></div>
 
@@ -3104,6 +3121,24 @@ export default function App() {
                   <div className="flex items-center gap-3">
                     <Shield className="w-4 h-4 text-rose-600" />
                     <span>Supervisor</span>
+                  </div>
+                </button>
+
+                <div className="border-b border-[#e2e8f0]/60 mx-1"></div>
+
+                {/* Overdue Menu */}
+                <button
+                  onClick={() => {
+                    setActiveTab("overdue");
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className={`w-full py-2.5 px-4 rounded-xl text-left text-xs font-black uppercase tracking-wider flex items-center justify-between ${
+                    activeTab === "overdue" ? "bg-rose-500 text-[#ffffff]" : "bg-[#e2e8f0]/20 text-[#64748b]"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Clock className="w-4 h-4" />
+                    <span>Overdue Faktur</span>
                   </div>
                 </button>
 
@@ -3914,6 +3949,16 @@ export default function App() {
             </motion.div>
             );
           })()}
+
+          {/* TAB 9: OVERDUE PAGE */}
+          {activeTab === "overdue" && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <OverDuePage />
+            </motion.div>
+          )}
 
           {activeTab === "salesmen" && (
             <motion.div
