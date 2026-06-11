@@ -609,6 +609,70 @@ const APPS_SCRIPT_CODE_STENCIL = `function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
+    // AKSI 14: Sinkronisasi Laporan Overdue Faktur (TXT/Excel Import)
+    if (data.action === "syncOverdue") {
+      var sheet = getOrCreateGlobalSheet(ss, "Data Overdue Faktur", [
+        "Tanggal Faktur", "Nomor Faktur", "Jatuh Tempo", "ID Pelanggan", "Nama Pelanggan",
+        "Alamat", "Kota", "Total Tagihan", "Sisa Piutang", "Umur Overdue (Hari)", 
+        "Nama Salesman", "Tanggal Bayar Terakhir"
+      ], "#be123c"); // Rose-700 color
+      
+      var invs = data.data;
+      if (sheet.getLastRow() > 1) {
+        sheet.deleteRows(2, sheet.getLastRow() - 1);
+      }
+      
+      for (var i = 0; i < invs.length; i++) {
+        var inv = invs[i];
+        sheet.appendRow([
+          inv.tanggal || "-", inv.nomor || "-", inv.jt || "-", inv.idPelanggan || "-", inv.pelanggan || "-",
+          inv.alamat || "-", inv.kota || "-", inv.total || 0, inv.piutang || 0, inv.umur || 0,
+          inv.salesFaktur || "-", inv.tanggalBayarTerakhir || "-"
+        ]);
+      }
+      
+      autoResizeColumns(sheet, 12);
+      
+      return ContentService.createTextOutput(JSON.stringify({ 
+        success: true, 
+        message: "Berhasil menyinkronkan " + invs.length + " data Faktur Overdue ke tab '" + sheet.getName() + "'"
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // AKSI 15: Tarik Data Overdue Faktur
+    if (data.action === "getOverdue") {
+      var sheet = ss.getSheetByName("Data Overdue Faktur");
+      if (!sheet) {
+        return ContentService.createTextOutput(JSON.stringify({ success: true, data: [] })).setMimeType(ContentService.MimeType.JSON);
+      }
+      var lastRow = sheet.getLastRow();
+      if (lastRow <= 1) {
+        return ContentService.createTextOutput(JSON.stringify({ success: true, data: [] })).setMimeType(ContentService.MimeType.JSON);
+      }
+      var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+      var rawData = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
+      var invoiceList = [];
+      for (var i = 0; i < rawData.length; i++) {
+        var rowVal = rawData[i];
+        var item = {
+          tanggal: rowVal[0],
+          nomor: rowVal[1],
+          jt: rowVal[2],
+          idPelanggan: rowVal[3],
+          pelanggan: rowVal[4],
+          alamat: rowVal[5],
+          kota: rowVal[6],
+          total: rowVal[7] || 0,
+          piutang: rowVal[8] || 0,
+          umur: rowVal[9] || 0,
+          salesFaktur: rowVal[10],
+          tanggalBayarTerakhir: rowVal[11]
+        };
+        invoiceList.push(item);
+      }
+      return ContentService.createTextOutput(JSON.stringify({ success: true, data: invoiceList })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     return ContentService.createTextOutput(JSON.stringify({ 
       success: false, 
       message: "Operasi atau aksi '" + data.action + "' tidak dikenali." 
@@ -3956,7 +4020,7 @@ export default function App() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
             >
-              <OverDuePage />
+              <OverDuePage sheetsScriptUrl={sheetsScriptUrl} />
             </motion.div>
           )}
 

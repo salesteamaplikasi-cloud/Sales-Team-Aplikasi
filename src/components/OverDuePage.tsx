@@ -19,11 +19,14 @@ export interface OverdueInvoice {
   tanggalBayarTerakhir: string;
 }
 
-export function OverDuePage() {
+export function OverDuePage({ sheetsScriptUrl }: { sheetsScriptUrl?: string }) {
   const [invoices, setInvoices] = useState<OverdueInvoice[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'umurDesc' | 'umurAsc' | 'piutangDesc' | 'piutangAsc' | 'default'>('umurDesc');
   const [errorMsg, setErrorMsg] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -83,7 +86,10 @@ export function OverDuePage() {
 
           // Helper to get value by fixed column width
           const getVal = (possibleNames: string[]) => {
-            const col = columnPositions.find(c => possibleNames.some(name => c.name.includes(name.toLowerCase())));
+            let col = columnPositions.find(c => possibleNames.includes(c.name));
+            if (!col) {
+              col = columnPositions.find(c => possibleNames.some(name => c.name.includes(name.toLowerCase())));
+            }
             if (!col) return '';
             if (col.end) {
               return line.substring(col.start, col.end).trim();
@@ -229,6 +235,71 @@ export function OverDuePage() {
      return result;
   };
   
+  const handleSyncToSheets = async () => {
+    if (!sheetsScriptUrl) {
+      setErrorMsg("Tolong hubungkan dan masukkan URL Google Sheets Web App di pengaturan!");
+      return;
+    }
+    setErrorMsg('');
+    setIsSyncing(true);
+    setSyncStatus('idle');
+    try {
+      const response = await fetch(sheetsScriptUrl, {
+        method: "POST",
+        mode: "cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "syncOverdue",
+          data: invoices
+        }),
+      });
+      const result = await response.json();
+      if (result.success) {
+        setSyncStatus('success');
+        setTimeout(() => setSyncStatus('idle'), 3000);
+      } else {
+        setSyncStatus('error');
+        setErrorMsg("Gagal sinkronisasi data ke Google Sheets.");
+      }
+    } catch (err) {
+      console.error(err);
+      setSyncStatus('error');
+      setErrorMsg("Terjadi kesalahan jaringan.");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleFetchFromSheets = async () => {
+    if (!sheetsScriptUrl) {
+      setErrorMsg("Tolong hubungkan dan masukkan URL Google Sheets Web App di pengaturan!");
+      return;
+    }
+    setErrorMsg('');
+    setIsFetching(true);
+    try {
+      const response = await fetch(sheetsScriptUrl, {
+        method: "POST",
+        mode: "cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "getOverdue"
+        }),
+      });
+      const result = await response.json();
+      if (result.success && result.data) {
+        setInvoices(result.data);
+      } else {
+        setErrorMsg("Gagal mengambil data dari Google Sheets.");
+      }
+    } catch (err) {
+      console.error(err);
+      setErrorMsg("Terjadi kesalahan jaringan.");
+    } finally {
+      setIsFetching(false);
+    }
+  };
+
   const displayedInvoices = getSortedAndFilteredInvoices();
   const dashboardData = generateDashboardData();
 
@@ -246,7 +317,7 @@ export function OverDuePage() {
           </p>
         </div>
 
-        <div className="relative z-10">
+        <div className="relative z-10 flex flex-wrap gap-3 mt-4 md:mt-0">
           <label className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold uppercase tracking-wider px-6 py-3.5 rounded-xl transition cursor-pointer shadow-sm hover:shadow-md flex items-center justify-center gap-2">
             <Upload className="w-4 h-4" />
             Impor File Accurate
@@ -257,6 +328,26 @@ export function OverDuePage() {
               onChange={handleFileUpload}
             />
           </label>
+          {sheetsScriptUrl && invoices.length > 0 && (
+            <button
+              onClick={handleSyncToSheets}
+              disabled={isSyncing}
+              className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold uppercase tracking-wider px-6 py-3.5 rounded-xl transition shadow-sm hover:shadow-md flex items-center justify-center gap-2"
+            >
+              <FileText className="w-4 h-4" />
+              {isSyncing ? "Menyimpan..." : "Simpan ke DB"}
+            </button>
+          )}
+          {sheetsScriptUrl && (
+             <button
+              onClick={handleFetchFromSheets}
+              disabled={isFetching}
+              className="bg-white border border-[#e2e8f0] text-[#0f172a] hover:bg-gray-50 text-xs font-bold uppercase tracking-wider px-6 py-3.5 rounded-xl transition shadow-sm hover:shadow-md flex items-center justify-center gap-2"
+             >
+               <Download className="w-4 h-4 text-[#64748b]" />
+               {isFetching ? "Menarik..." : "Tarik DB"}
+             </button>
+          )}
         </div>
       </div>
       
@@ -331,10 +422,10 @@ export function OverDuePage() {
 
            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
               {/* Chart Aging */}
-              <div className="bg-[#ffffff] p-6 rounded-3xl border border-[#e2e8f0]/60 shadow-xs">
+              <div className="bg-[#ffffff] p-6 rounded-3xl border border-[#e2e8f0]/60 shadow-xs flex flex-col">
                  <h3 className="text-sm font-black text-[#0f172a] uppercase tracking-wider mb-6">Aging Piutang Chart</h3>
-                 <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
+                 <div className="h-64 w-full min-h-[256px]">
+                    <ResponsiveContainer width="100%" height={256}>
                        <BarChart data={dashboardData.agingData.filter(d => d.value > 0)}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                           <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 'bold' }} />
