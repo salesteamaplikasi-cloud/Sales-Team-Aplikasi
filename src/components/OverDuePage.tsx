@@ -247,7 +247,7 @@ export function OverDuePage({ sheetsScriptUrl }: { sheetsScriptUrl?: string }) {
       const response = await fetch(sheetsScriptUrl, {
         method: "POST",
         mode: "cors",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "text/plain" },
         body: JSON.stringify({
           action: "syncOverdue",
           data: invoices
@@ -281,7 +281,7 @@ export function OverDuePage({ sheetsScriptUrl }: { sheetsScriptUrl?: string }) {
       const response = await fetch(sheetsScriptUrl, {
         method: "POST",
         mode: "cors",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "text/plain" },
         body: JSON.stringify({
           action: "getOverdue"
         }),
